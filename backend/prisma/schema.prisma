@@ -1,0 +1,110 @@
+// Prisma Schema for GST Compliance SaaS
+// This is the initial schema - will be expanded in Week 1-2
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Model (Week 2: Authentication)
+model User {
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  passwordHash          String    @map("password_hash")
+  emailVerified         Boolean   @default(false) @map("email_verified")
+  emailVerificationToken String?  @map("email_verification_token")
+  passwordResetToken    String?   @map("password_reset_token")
+  passwordResetExpires  DateTime? @map("password_reset_expires")
+  role                  String    @default("owner") // owner, accountant, viewer
+  isActive              Boolean   @default(true) @map("is_active")
+  lastLogin             DateTime? @map("last_login")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  // Relations
+  businesses Business[]
+
+  @@index([email])
+  @@index([isActive])
+  @@map("users")
+}
+
+// Business Model (Week 2: Business Setup)
+model Business {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  
+  // Business Details
+  businessName     String    @map("business_name")
+  tradeName        String?   @map("trade_name")
+  businessType     String    @map("business_type") // regular, composition, sez, export
+  
+  // GST Details (CRITICAL)
+  gstin            String    @unique
+  pan              String
+  stateCode        String    @map("state_code")
+  registrationDate DateTime  @map("registration_date")
+  
+  // Address
+  addressLine1     String    @map("address_line1")
+  addressLine2     String?   @map("address_line2")
+  city             String
+  state            String
+  pincode          String
+  
+  // Contact
+  email            String?
+  phone            String?
+  website          String?
+  
+  // Bank Details
+  bankName         String?   @map("bank_name")
+  bankAccountNumber String?  @map("bank_account_number")
+  bankIfsc         String?   @map("bank_ifsc")
+  bankBranch       String?   @map("bank_branch")
+  
+  // GST Configuration
+  filingFrequency  String    @default("monthly") @map("filing_frequency") // monthly, quarterly
+  financialYearStart String  @default("04-01") @map("financial_year_start")
+  
+  // Branding
+  logoUrl          String?   @map("logo_url")
+  
+  // Subscription
+  subscriptionPlan String    @default("free_trial") @map("subscription_plan")
+  subscriptionStatus String  @default("active") @map("subscription_status")
+  subscriptionValidUntil DateTime? @map("subscription_valid_until")
+  invoiceLimit     Int       @default(100) @map("invoice_limit")
+  invoiceCountCurrentMonth Int @default(0) @map("invoice_count_current_month")
+  
+  // Metadata
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([gstin])
+  @@index([isActive])
+  @@map("businesses")
+}
+
+// TODO: Add more models in Week 3-4
+// - Customer
+// - Product
+// - Invoice
+// - InvoiceItem
+// - GSTReturn
+// - Subscription
+// - AuditLog
+// - Notification
+
+// See docs/02-DATABASE-SCHEMA.md for complete schema
