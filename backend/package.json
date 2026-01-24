@@ -1,0 +1,58 @@
+{
+  "name": "gst-saas-backend",
+  "version": "1.0.0",
+  "description": "GST Compliance SaaS Backend API",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "lint": "eslint .",
+    "format": "prettier --write \"src/**/*.js\""
+  },
+  "keywords": [
+    "gst",
+    "tax",
+    "compliance",
+    "saas",
+    "india"
+  ],
+  "author": "Your Team",
+  "license": "PROPRIETARY",
+  "dependencies": {
+    "express": "^4.18.2",
+    "prisma": "^5.8.0",
+    "@prisma/client": "^5.8.0",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "joi": "^17.11.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "nodemailer": "^6.9.7",
+    "puppeteer": "^21.7.0",
+    "aws-sdk": "^2.1524.0",
+    "razorpay": "^2.9.2",
+    "ioredis": "^5.3.2",
+    "winston": "^3.11.0",
+    "@sentry/node": "^7.93.0",
+    "multer": "^1.4.5-lts.1",
+    "date-fns": "^3.0.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
