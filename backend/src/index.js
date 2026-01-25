@@ -43,7 +43,7 @@ app.get('/api', (req, res) => {
     endpoints: {
       health: '/health',
       api: '/api',
-      auth: '/api/auth (coming soon)',
+      auth: '/api/auth ✅',
       invoices: '/api/invoices (coming soon)',
       returns: '/api/returns (coming soon)'
     },
@@ -51,8 +51,12 @@ app.get('/api', (req, res) => {
   });
 });
 
-// API Routes (will be added in Week 2)
-// app.use('/api/auth', require('./routes/authRoutes'));
+// ============================================
+// API Routes - Week 2: Authentication
+// ============================================
+app.use('/api/auth', require('./routes/authRoutes'));
+
+// Coming in Week 3-4:
 // app.use('/api/invoices', require('./routes/invoiceRoutes'));
 // app.use('/api/returns', require('./routes/returnsRoutes'));
 
