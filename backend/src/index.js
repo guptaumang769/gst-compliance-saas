@@ -44,8 +44,10 @@ app.get('/api', (req, res) => {
       health: '/health',
       api: '/api',
       auth: '/api/auth ✅',
-      invoices: '/api/invoices (coming soon)',
-      returns: '/api/returns (coming soon)'
+      customers: '/api/customers ✅',
+      invoices: '/api/invoices ✅',
+      gstr1: '/api/gstr1 (coming soon)',
+      gstr3b: '/api/gstr3b (coming soon)'
     },
     documentation: 'See /docs folder in repository'
   });
@@ -56,9 +58,15 @@ app.get('/api', (req, res) => {
 // ============================================
 app.use('/api/auth', require('./routes/authRoutes'));
 
-// Coming in Week 3-4:
-// app.use('/api/invoices', require('./routes/invoiceRoutes'));
-// app.use('/api/returns', require('./routes/returnsRoutes'));
+// ============================================
+// API Routes - Week 3-4: Invoice & Customer Management
+// ============================================
+app.use('/api/customers', require('./routes/customerRoutes'));
+app.use('/api/invoices', require('./routes/invoiceRoutes'));
+
+// Coming in Week 5-6:
+// app.use('/api/gstr1', require('./routes/gstr1Routes'));
+// app.use('/api/gstr3b', require('./routes/gstr3bRoutes'));
 
 // 404 handler
 app.use('*', (req, res) => {
