@@ -15,27 +15,51 @@ let authToken = '';
 let customerId = '';
 let invoiceId = '';
 
-// Login credentials (use a test account)
+// Test account credentials
 const testUser = {
-  email: 'test@gstcompliance.com',
-  password: 'SecurePassword123'
+  email: `test-${Date.now()}@gstcompliance.com`,
+  password: 'SecurePassword123',
+  businessName: 'Test Business Pvt Ltd',
+  gstin: '27AAPFU0939F1ZV', // Valid Maharashtra GSTIN
+  pan: 'AAPFU0939F',
+  state: 'Maharashtra',
+  address: '123 Test Street, Mumbai',
+  phone: '9876543210'
 };
 
 /**
- * Login first to get auth token
+ * Register test user if doesn't exist
  */
-async function login() {
-  console.log('\n🔐 Logging in...');
+async function registerTestUser() {
+  console.log('📝 Registering test account...');
   try {
-    const response = await axios.post(`${BASE_URL}/api/auth/login`, testUser);
+    const response = await axios.post(`${BASE_URL}/api/auth/register`, testUser);
     authToken = response.data.token;
-    console.log('✅ Login successful\n');
+    console.log('✅ Test account registered successfully\n');
     return true;
   } catch (error) {
-    console.error('❌ Login failed. Please ensure you have a test account registered.');
-    console.error('Run: node src/test-auth.js first to create a test account\n');
+    console.error('❌ Registration failed:', error.response?.data?.error || error.message);
     return false;
   }
+}
+
+/**
+ * Login or register test user
+ */
+async function login() {
+  console.log('\n🔐 Setting up test account...');
+  
+  // Always register a new test account with unique email (using timestamp)
+  // This ensures clean test data each time
+  const registerSuccess = await registerTestUser();
+  
+  if (!registerSuccess) {
+    console.error('❌ Failed to create test account\n');
+    return false;
+  }
+  
+  console.log('✅ Test account ready\n');
+  return true;
 }
 
 /**
