@@ -286,29 +286,29 @@ console.log(`   ✓ Invalid rates: 12%, 28% (abolished), 10%, 15% (never valid)\
 // ============================================
 console.log('📝 TEST 8: GST with Cess');
 console.log('==========================');
-runTest('Calculate GST with cess', () => {
+runTest('Calculate GST with cess (Luxury/Sin items)', () => {
   const result = calculateItemGST({
     taxableAmount: 10000,
-    gstRate: 28,
+    gstRate: 40, // Updated to 2026 luxury rate
     sellerStateCode: '27',
     buyerStateCode: '27',
     invoiceType: 'b2b',
     cessRate: 12 // Example: Tobacco products
   });
   
-  // GST: 10000 * 28% = 2800 (CGST 1400 + SGST 1400)
+  // GST: 10000 * 40% = 4000 (CGST 2000 + SGST 2000)
   // Cess: 10000 * 12% = 1200
-  // Total tax: 2800 + 1200 = 4000
-  if (result.totalTaxAmount !== 4000) throw new Error(`Expected tax ₹4000, got ₹${result.totalTaxAmount}`);
+  // Total tax: 4000 + 1200 = 5200
+  if (result.totalTaxAmount !== 5200) throw new Error(`Expected tax ₹5200, got ₹${result.totalTaxAmount}`);
   if (result.cessAmount !== 1200) throw new Error(`Expected cess ₹1200, got ₹${result.cessAmount}`);
 });
 
 console.log(`   Taxable Amount: ₹10,000`);
-console.log(`   GST Rate: 28% (CGST 14% + SGST 14%)`);
-console.log(`   Cess Rate: 12%`);
-console.log(`   → GST: ₹2,800`);
+console.log(`   GST Rate: 40% (CGST 20% + SGST 20%) - Luxury/Sin`);
+console.log(`   Cess Rate: 12% (Tobacco products)`);
+console.log(`   → GST: ₹4,000`);
 console.log(`   → Cess: ₹1,200`);
-console.log(`   → Total Tax: ₹4,000\n`);
+console.log(`   → Total Tax: ₹5,200\n`);
 
 // ============================================
 // SUMMARY
