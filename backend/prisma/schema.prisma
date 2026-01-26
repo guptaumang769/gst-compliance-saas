@@ -90,6 +90,8 @@ model Business {
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customers Customer[]
+  invoices Invoice[]
 
   @@index([userId])
   @@index([gstin])
@@ -97,11 +99,161 @@ model Business {
   @@map("businesses")
 }
 
-// TODO: Add more models in Week 3-4
-// - Customer
-// - Product
-// - Invoice
-// - InvoiceItem
+// Customer Model (Week 3: Customer Management)
+model Customer {
+  id               String    @id @default(uuid())
+  businessId       String    @map("business_id")
+  
+  // Customer Details
+  customerName     String    @map("customer_name")
+  gstin            String?   // Optional for B2C customers
+  pan              String?
+  billingAddress   String    @map("billing_address")
+  city             String
+  state            String
+  stateCode        String?   @map("state_code") // Extracted from GSTIN if available
+  pincode          String
+  
+  // Contact
+  email            String?
+  phone            String?
+  
+  // Customer Type
+  customerType     String    @default("b2b") @map("customer_type") // b2b, b2c, export, sez
+  
+  // Metadata
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+  
+  // Relations
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+  
+  @@index([businessId])
+  @@index([gstin])
+  @@index([customerType])
+  @@index([isActive])
+  @@map("customers")
+}
+
+// Invoice Model (Week 3: Invoice Management)
+model Invoice {
+  id                    String    @id @default(uuid())
+  businessId            String    @map("business_id")
+  customerId            String    @map("customer_id")
+  
+  // Invoice Details
+  invoiceNumber         String    @map("invoice_number")
+  invoiceDate           DateTime  @map("invoice_date")
+  invoiceType           String    @map("invoice_type") // b2b, b2c_large, b2c_small, export, sez
+  
+  // Financial Details
+  subtotal              Decimal   @db.Decimal(12, 2)
+  discountAmount        Decimal   @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  taxableAmount         Decimal   @map("taxable_amount") @db.Decimal(12, 2)
+  
+  // GST Breakdown (CRITICAL)
+  cgstAmount            Decimal   @default(0) @map("cgst_amount") @db.Decimal(12, 2)
+  sgstAmount            Decimal   @default(0) @map("sgst_amount") @db.Decimal(12, 2)
+  igstAmount            Decimal   @default(0) @map("igst_amount") @db.Decimal(12, 2)
+  cessAmount            Decimal   @default(0) @map("cess_amount") @db.Decimal(12, 2)
+  totalTaxAmount        Decimal   @map("total_tax_amount") @db.Decimal(12, 2)
+  
+  // Total
+  totalAmount           Decimal   @map("total_amount") @db.Decimal(12, 2)
+  roundOffAmount        Decimal   @default(0) @map("round_off_amount") @db.Decimal(12, 2)
+  
+  // State Information (for GST calculation)
+  sellerState           String    @map("seller_state")
+  sellerStateCode       String    @map("seller_state_code")
+  buyerState            String    @map("buyer_state")
+  buyerStateCode        String?   @map("buyer_state_code")
+  
+  // Additional Details
+  placeOfSupply         String    @map("place_of_supply")
+  reverseCharge         Boolean   @default(false) @map("reverse_charge")
+  notes                 String?
+  termsAndConditions    String?   @map("terms_and_conditions")
+  
+  // GSTR Filing Status
+  filedInGstr1          Boolean   @default(false) @map("filed_in_gstr1")
+  gstr1FilingMonth      String?   @map("gstr1_filing_month") // Format: "YYYY-MM"
+  
+  // Metadata
+  isActive              Boolean   @default(true) @map("is_active")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+  
+  // Relations
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id])
+  items    InvoiceItem[]
+  
+  @@unique([businessId, invoiceNumber])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([invoiceDate])
+  @@index([invoiceType])
+  @@index([filedInGstr1])
+  @@map("invoices")
+}
+
+// Invoice Item Model (Week 3: Invoice Line Items)
+model InvoiceItem {
+  id                String   @id @default(uuid())
+  invoiceId         String   @map("invoice_id")
+  
+  // Item Details
+  itemName          String   @map("item_name")
+  description       String?
+  hsnCode           String?  @map("hsn_code") // HSN for goods
+  sacCode           String?  @map("sac_code") // SAC for services
+  
+  // Quantity & Price
+  quantity          Decimal  @db.Decimal(10, 3)
+  unit              String   @default("NOS") // NOS, KG, LITER, etc.
+  unitPrice         Decimal  @map("unit_price") @db.Decimal(12, 2)
+  
+  // Discount
+  discountPercent   Decimal  @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount    Decimal  @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  
+  // Taxable Amount
+  taxableAmount     Decimal  @map("taxable_amount") @db.Decimal(12, 2)
+  
+  // GST Rate
+  gstRate           Decimal  @map("gst_rate") @db.Decimal(5, 2) // 5, 12, 18, 28
+  
+  // GST Breakdown
+  cgstRate          Decimal  @default(0) @map("cgst_rate") @db.Decimal(5, 2)
+  cgstAmount        Decimal  @default(0) @map("cgst_amount") @db.Decimal(12, 2)
+  sgstRate          Decimal  @default(0) @map("sgst_rate") @db.Decimal(5, 2)
+  sgstAmount        Decimal  @default(0) @map("sgst_amount") @db.Decimal(12, 2)
+  igstRate          Decimal  @default(0) @map("igst_rate") @db.Decimal(5, 2)
+  igstAmount        Decimal  @default(0) @map("igst_amount") @db.Decimal(12, 2)
+  cessRate          Decimal  @default(0) @map("cess_rate") @db.Decimal(5, 2)
+  cessAmount        Decimal  @default(0) @map("cess_amount") @db.Decimal(12, 2)
+  
+  // Total
+  totalAmount       Decimal  @map("total_amount") @db.Decimal(12, 2)
+  
+  // Metadata
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  @@index([invoiceId])
+  @@index([hsnCode])
+  @@index([sacCode])
+  @@map("invoice_items")
+}
+
+// TODO: Add more models in Week 5-6
 // - GSTReturn
 // - Subscription
 // - AuditLog
