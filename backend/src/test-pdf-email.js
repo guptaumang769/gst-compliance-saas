@@ -99,7 +99,7 @@ api.interceptors.request.use((config) => {
 async function setupTestInvoice() {
   log('📝 Setting up test invoice...', 'blue');
   try {
-    // Get existing invoices
+    // Try to get existing invoices
     const response = await api.get('/api/invoices?limit=1');
     
     if (response.data.data && response.data.data.length > 0) {
@@ -107,13 +107,70 @@ async function setupTestInvoice() {
       log(`✅ Using existing invoice: ${response.data.data[0].invoiceNumber}`, 'green');
       log(`   Invoice ID: ${testInvoiceId}\n`, 'green');
       return true;
-    } else {
-      log('⚠️  No invoices found. Please create an invoice first.', 'yellow');
-      log('   Run: node src/test-customer-invoice.js', 'yellow');
-      return false;
     }
+    
+    // No invoices found, create one
+    log('⚠️  No invoices found. Creating test customer and invoice...', 'yellow');
+    
+    // Step 1: Create a test customer
+    const customerResponse = await api.post('/api/customers', {
+      customerName: 'PDF Test Customer Pvt Ltd',
+      gstin: '29ABCDE1234F1Z5', // Karnataka
+      pan: 'ABCDE1234F',
+      customerType: 'b2b',
+      billingAddress: '456 Test Street',
+      city: 'Bangalore',
+      state: 'Karnataka',
+      pincode: '560001',
+      email: 'customer@pdftest.com',
+      phone: '9876543210'
+    });
+    
+    const customerId = customerResponse.data.data.id;
+    log(`✅ Test customer created: ${customerId}`, 'green');
+    
+    // Step 2: Create a test invoice
+    const invoiceResponse = await api.post('/api/invoices', {
+      customerId: customerId,
+      invoiceDate: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      items: [
+        {
+          itemName: 'Professional Services - Web Development',
+          description: 'Custom website development',
+          sacCode: '998314',
+          quantity: 1,
+          unit: 'Service',
+          unitPrice: 50000,
+          gstRate: 18,
+          cessRate: 0
+        },
+        {
+          itemName: 'Digital Marketing Services',
+          description: 'SEO and content marketing',
+          sacCode: '998313',
+          quantity: 1,
+          unit: 'Service',
+          unitPrice: 25000,
+          gstRate: 18,
+          cessRate: 0
+        }
+      ],
+      notes: 'Test invoice for PDF and email testing',
+      termsAndConditions: 'Payment due within 30 days'
+    });
+    
+    testInvoiceId = invoiceResponse.data.data.id;
+    log(`✅ Test invoice created: ${invoiceResponse.data.data.invoiceNumber}`, 'green');
+    log(`   Invoice ID: ${testInvoiceId}`, 'green');
+    log(`   Total Amount: ₹${invoiceResponse.data.data.totalAmount}\n`, 'green');
+    
+    return true;
   } catch (error) {
-    log(`❌ Failed to get invoices: ${error.message}`, 'red');
+    log(`❌ Failed to setup test invoice: ${error.response?.data?.message || error.message}`, 'red');
+    if (error.response?.data) {
+      log(`   Details: ${JSON.stringify(error.response.data)}`, 'red');
+    }
     return false;
   }
 }
