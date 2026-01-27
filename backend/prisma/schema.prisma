@@ -95,6 +95,7 @@ model Business {
   suppliers Supplier[]
   purchases Purchase[]
   gstReturns GSTReturn[]
+  payments Payment[]
 
   @@index([userId])
   @@index([gstin])
@@ -486,10 +487,70 @@ model GSTReturn {
   @@map("gst_returns")
 }
 
-// TODO: Add more models in Week 9-10
-// - Subscription
-// - AuditLog
-// - Notification
-// - Payment
+// Payment Model (Week 11-12: Subscription & Payments)
+model Payment {
+  id                     String    @id @default(uuid())
+  businessId             String    @map("business_id")
+  
+  // Payment Details
+  paymentType            String    @map("payment_type") // subscription, addon, refund
+  planId                 String    @map("plan_id") // starter, professional, enterprise
+  billingCycle           String    @map("billing_cycle") // monthly, annual
+  
+  // Amounts
+  amount                 Decimal   @map("amount") @db.Decimal(10, 2)
+  currency               String    @default("INR")
+  gstAmount              Decimal   @default(0) @map("gst_amount") @db.Decimal(10, 2)
+  totalAmount            Decimal   @map("total_amount") @db.Decimal(10, 2)
+  
+  // Razorpay Details
+  razorpayOrderId        String?   @unique @map("razorpay_order_id")
+  razorpayPaymentId      String?   @unique @map("razorpay_payment_id")
+  razorpaySignature      String?   @map("razorpay_signature")
+  
+  // Payment Status
+  status                 String    @default("created") // created, authorized, captured, failed, refunded
+  paymentMethod          String?   @map("payment_method") // card, netbanking, upi, wallet
+  
+  // Subscription Period
+  subscriptionStartDate  DateTime? @map("subscription_start_date")
+  subscriptionEndDate    DateTime? @map("subscription_end_date")
+  
+  // Receipt & Invoice
+  receiptNumber          String?   @unique @map("receipt_number")
+  invoiceUrl             String?   @map("invoice_url")
+  
+  // Failure/Error Details
+  failureReason          String?   @map("failure_reason")
+  errorCode              String?   @map("error_code")
+  errorDescription       String?   @map("error_description")
+  
+  // Refund Details (if applicable)
+  refundId               String?   @map("refund_id")
+  refundAmount           Decimal?  @map("refund_amount") @db.Decimal(10, 2)
+  refundedAt             DateTime? @map("refunded_at")
+  
+  // Metadata
+  metadata               Json?     // Additional payment data
+  notes                  String?
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  @@index([businessId])
+  @@index([status])
+  @@index([paymentType])
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+// TODO: Add more models in future weeks
+// - AuditLog (track all changes)
+// - Notification (email/SMS notifications)
+// - Webhook (external integrations)
 
 // See docs/02-DATABASE-SCHEMA.md for complete schema

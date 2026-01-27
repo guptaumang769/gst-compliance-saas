@@ -6,10 +6,10 @@
 const express = require('express');
 const router = express.Router();
 const supplierController = require('../controllers/supplierController');
-const { authenticate } = require('../middleware/authMiddleware');
+const { authenticateToken } = require('../middleware/authMiddleware');
 
 // All supplier routes require authentication
-router.use(authenticate);
+router.use(authenticateToken);
 
 // Supplier CRUD operations
 router.post('/', supplierController.createSupplier);
