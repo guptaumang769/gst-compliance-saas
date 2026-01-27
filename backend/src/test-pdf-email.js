@@ -102,9 +102,9 @@ async function setupTestInvoice() {
     // Try to get existing invoices
     const response = await api.get('/api/invoices?limit=1');
     
-    if (response.data.data && response.data.data.length > 0) {
-      testInvoiceId = response.data.data[0].id;
-      log(`✅ Using existing invoice: ${response.data.data[0].invoiceNumber}`, 'green');
+    if (response.data.invoices && response.data.invoices.length > 0) {
+      testInvoiceId = response.data.invoices[0].id;
+      log(`✅ Using existing invoice: ${response.data.invoices[0].invoiceNumber}`, 'green');
       log(`   Invoice ID: ${testInvoiceId}\n`, 'green');
       return true;
     }
@@ -126,14 +126,13 @@ async function setupTestInvoice() {
       phone: '9876543210'
     });
     
-    const customerId = customerResponse.data.data.id;
+    const customerId = customerResponse.data.customer.id;
     log(`✅ Test customer created: ${customerId}`, 'green');
     
     // Step 2: Create a test invoice
     const invoiceResponse = await api.post('/api/invoices', {
       customerId: customerId,
       invoiceDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       items: [
         {
           itemName: 'Professional Services - Web Development',
@@ -160,10 +159,10 @@ async function setupTestInvoice() {
       termsAndConditions: 'Payment due within 30 days'
     });
     
-    testInvoiceId = invoiceResponse.data.data.id;
-    log(`✅ Test invoice created: ${invoiceResponse.data.data.invoiceNumber}`, 'green');
+    testInvoiceId = invoiceResponse.data.invoice.id;
+    log(`✅ Test invoice created: ${invoiceResponse.data.invoice.invoiceNumber}`, 'green');
     log(`   Invoice ID: ${testInvoiceId}`, 'green');
-    log(`   Total Amount: ₹${invoiceResponse.data.data.totalAmount}\n`, 'green');
+    log(`   Total Amount: ₹${invoiceResponse.data.invoice.totalAmount}\n`, 'green');
     
     return true;
   } catch (error) {
