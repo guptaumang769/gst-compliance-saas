@@ -97,7 +97,9 @@ async function testCreateCustomerB2B() {
     return true;
   } catch (error) {
     console.error('❌ Failed to create customer');
-    console.error(error.response?.data || error.message);
+    console.error('Status:', error.response?.status);
+    console.error('Error:', error.response?.data);
+    console.error('Full error:', error.message);
     return false;
   }
 }
@@ -132,7 +134,9 @@ async function testCreateCustomerB2C() {
     return true;
   } catch (error) {
     console.error('❌ Failed to create B2C customer');
-    console.error(error.response?.data || error.message);
+    console.error('Status:', error.response?.status);
+    console.error('Error:', error.response?.data);
+    console.error('Full error:', error.message);
     return false;
   }
 }
@@ -156,7 +160,9 @@ async function testGetCustomers() {
     return true;
   } catch (error) {
     console.error('❌ Failed to get customers');
-    console.error(error.response?.data || error.message);
+    console.error('Status:', error.response?.status);
+    console.error('Error:', error.response?.data);
+    console.error('Full error:', error.message);
     return false;
   }
 }

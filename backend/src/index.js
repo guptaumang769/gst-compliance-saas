@@ -46,6 +46,9 @@ app.get('/api', (req, res) => {
       auth: '/api/auth ✅',
       customers: '/api/customers ✅',
       invoices: '/api/invoices ✅',
+      suppliers: '/api/suppliers ✅ NEW',
+      purchases: '/api/purchases ✅ NEW',
+      dashboard: '/api/dashboard ✅ NEW',
       gstr1: '/api/gstr1 (coming soon)',
       gstr3b: '/api/gstr3b (coming soon)'
     },
@@ -64,7 +67,14 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/customers', require('./routes/customerRoutes'));
 app.use('/api/invoices', require('./routes/invoiceRoutes'));
 
-// Coming in Week 5-6:
+// ============================================
+// API Routes - Week 5-6: Purchase & Dashboard
+// ============================================
+app.use('/api/suppliers', require('./routes/supplierRoutes'));
+app.use('/api/purchases', require('./routes/purchaseRoutes'));
+app.use('/api/dashboard', require('./routes/dashboardRoutes'));
+
+// Coming in Week 7-8:
 // app.use('/api/gstr1', require('./routes/gstr1Routes'));
 // app.use('/api/gstr3b', require('./routes/gstr3bRoutes'));
 
