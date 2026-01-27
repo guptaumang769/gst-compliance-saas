@@ -468,8 +468,8 @@ function numberToWords(num) {
   }
 
   // Separate rupees and paise
-  const rupees = Math.floor(num);
-  const paise = Math.round((num - rupees) * 100);
+  let rupees = Math.floor(num);
+  let paise = Math.round((num - rupees) * 100);
 
   let result = '';
 
