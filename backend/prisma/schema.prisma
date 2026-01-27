@@ -184,6 +184,17 @@ model Invoice {
   filedInGstr1          Boolean   @default(false) @map("filed_in_gstr1")
   gstr1FilingMonth      String?   @map("gstr1_filing_month") // Format: "YYYY-MM"
   
+  // PDF Generation (Week 9-10)
+  pdfGenerated          Boolean   @default(false) @map("pdf_generated")
+  pdfFilePath           String?   @map("pdf_file_path")
+  pdfGeneratedAt        DateTime? @map("pdf_generated_at")
+  
+  // Email Status (Week 9-10)
+  emailSent             Boolean   @default(false) @map("email_sent")
+  emailSentTo           String?   @map("email_sent_to")
+  emailSentAt           DateTime? @map("email_sent_at")
+  emailSubject          String?   @map("email_subject")
+  
   // Metadata
   isActive              Boolean   @default(true) @map("is_active")
   createdAt             DateTime  @default(now()) @map("created_at")

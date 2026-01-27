@@ -5,6 +5,8 @@
  */
 
 const invoiceService = require('../services/invoiceService');
+const pdfService = require('../services/pdfService');
+const emailService = require('../services/emailService');
 
 /**
  * POST /api/invoices
@@ -289,11 +291,190 @@ async function getInvoiceStats(req, res) {
   }
 }
 
+/**
+ * POST /api/invoices/:id/generate-pdf
+ * Generate PDF for an invoice
+ */
+async function generateInvoicePDF(req, res) {
+  try {
+    const userId = req.user.userId;
+    const invoiceId = req.params.id;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active business found'
+      });
+    }
+    
+    // Generate PDF
+    const pdfPath = await pdfService.generateInvoicePDF(invoiceId, business.id);
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Invoice PDF generated successfully',
+      pdfPath,
+      invoiceId
+    });
+    
+  } catch (error) {
+    console.error('Generate PDF error:', error);
+    return res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to generate PDF'
+    });
+  }
+}
+
+/**
+ * GET /api/invoices/:id/download-pdf
+ * Download PDF for an invoice
+ */
+async function downloadInvoicePDF(req, res) {
+  try {
+    const userId = req.user.userId;
+    const invoiceId = req.params.id;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active business found'
+      });
+    }
+    
+    // Get PDF path
+    const pdfPath = await pdfService.getInvoicePDFPath(invoiceId, business.id);
+    
+    // Send file
+    return res.download(pdfPath);
+    
+  } catch (error) {
+    console.error('Download PDF error:', error);
+    return res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to download PDF'
+    });
+  }
+}
+
+/**
+ * POST /api/invoices/:id/send-email
+ * Send invoice via email
+ */
+async function sendInvoiceEmail(req, res) {
+  try {
+    const userId = req.user.userId;
+    const invoiceId = req.params.id;
+    const { to, subject, message } = req.body;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active business found'
+      });
+    }
+    
+    // Send email
+    const result = await emailService.sendInvoiceEmail(invoiceId, business.id, {
+      to,
+      subject,
+      message
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Invoice email sent successfully',
+      data: result
+    });
+    
+  } catch (error) {
+    console.error('Send email error:', error);
+    return res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to send email'
+    });
+  }
+}
+
+/**
+ * POST /api/invoices/test-email
+ * Test email configuration
+ */
+async function testEmailConfig(req, res) {
+  try {
+    const { to } = req.body;
+    
+    if (!to) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email address is required'
+      });
+    }
+    
+    const result = await emailService.sendTestEmail(to);
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Test email sent successfully',
+      data: result
+    });
+    
+  } catch (error) {
+    console.error('Test email error:', error);
+    return res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to send test email'
+    });
+  }
+}
+
+/**
+ * GET /api/invoices/verify-email-config
+ * Verify email configuration
+ */
+async function verifyEmailConfig(req, res) {
+  try {
+    const result = await emailService.verifyEmailConfig();
+    
+    return res.status(200).json(result);
+    
+  } catch (error) {
+    console.error('Verify email config error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to verify email configuration'
+    });
+  }
+}
+
 module.exports = {
   createInvoice,
   getInvoices,
   getInvoiceById,
   updateInvoice,
   deleteInvoice,
-  getInvoiceStats
+  getInvoiceStats,
+  generateInvoicePDF,
+  downloadInvoicePDF,
+  sendInvoiceEmail,
+  testEmailConfig,
+  verifyEmailConfig
 };
