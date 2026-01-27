@@ -12,12 +12,24 @@ const dashboardService = require('../services/dashboardService');
  */
 async function getDashboardOverview(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
     const currentDate = new Date();
     const month = parseInt(req.query.month) || currentDate.getMonth() + 1;
     const year = parseInt(req.query.year) || currentDate.getFullYear();
 
-    const overview = await dashboardService.getDashboardOverview(businessId, month, year);
+    const overview = await dashboardService.getDashboardOverview(business.id, month, year);
 
     res.status(200).json({
       success: true,
@@ -40,14 +52,26 @@ async function getDashboardOverview(req, res) {
  */
 async function getTopCustomers(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
     const filters = {
       month: parseInt(req.query.month),
       year: parseInt(req.query.year),
       limit: parseInt(req.query.limit) || 10
     };
 
-    const topCustomers = await dashboardService.getTopCustomers(businessId, filters);
+    const topCustomers = await dashboardService.getTopCustomers(business.id, filters);
 
     res.status(200).json({
       success: true,
@@ -70,14 +94,26 @@ async function getTopCustomers(req, res) {
  */
 async function getTopSuppliers(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
     const filters = {
       month: parseInt(req.query.month),
       year: parseInt(req.query.year),
       limit: parseInt(req.query.limit) || 10
     };
 
-    const topSuppliers = await dashboardService.getTopSuppliers(businessId, filters);
+    const topSuppliers = await dashboardService.getTopSuppliers(business.id, filters);
 
     res.status(200).json({
       success: true,
@@ -99,8 +135,20 @@ async function getTopSuppliers(req, res) {
  */
 async function getRevenueTrend(req, res) {
   try {
-    const businessId = req.user.businessId;
-    const trend = await dashboardService.getRevenueTrend(businessId);
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const trend = await dashboardService.getRevenueTrend(business.id);
 
     res.status(200).json({
       success: true,
@@ -122,8 +170,20 @@ async function getRevenueTrend(req, res) {
  */
 async function getGstDeadlines(req, res) {
   try {
-    const businessId = req.user.businessId;
-    const deadlines = await dashboardService.getGstDeadlines(businessId);
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const deadlines = await dashboardService.getGstDeadlines(business.id);
 
     res.status(200).json({
       success: true,
@@ -145,8 +205,20 @@ async function getGstDeadlines(req, res) {
  */
 async function getQuickStats(req, res) {
   try {
-    const businessId = req.user.businessId;
-    const stats = await dashboardService.getQuickStats(businessId);
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const stats = await dashboardService.getQuickStats(business.id);
 
     res.status(200).json({
       success: true,
