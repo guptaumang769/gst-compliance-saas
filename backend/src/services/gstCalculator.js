@@ -55,7 +55,7 @@ function calculateItemGST(params) {
   } = params;
   
   // Validate inputs
-  if (taxableAmount === undefined || taxableAmount < 0) {
+  if (taxableAmount === undefined || taxableAmount === null || isNaN(taxableAmount) || taxableAmount <= 0) {
     throw new Error('Taxable amount must be a positive number');
   }
   
