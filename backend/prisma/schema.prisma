@@ -94,6 +94,7 @@ model Business {
   invoices Invoice[]
   suppliers Supplier[]
   purchases Purchase[]
+  gstReturns GSTReturn[]
 
   @@index([userId])
   @@index([gstin])
@@ -182,6 +183,17 @@ model Invoice {
   // GSTR Filing Status
   filedInGstr1          Boolean   @default(false) @map("filed_in_gstr1")
   gstr1FilingMonth      String?   @map("gstr1_filing_month") // Format: "YYYY-MM"
+  
+  // PDF Generation (Week 9-10)
+  pdfGenerated          Boolean   @default(false) @map("pdf_generated")
+  pdfFilePath           String?   @map("pdf_file_path")
+  pdfGeneratedAt        DateTime? @map("pdf_generated_at")
+  
+  // Email Status (Week 9-10)
+  emailSent             Boolean   @default(false) @map("email_sent")
+  emailSentTo           String?   @map("email_sent_to")
+  emailSentAt           DateTime? @map("email_sent_at")
+  emailSubject          String?   @map("email_subject")
   
   // Metadata
   isActive              Boolean   @default(true) @map("is_active")
@@ -423,10 +435,61 @@ model PurchaseItem {
   @@map("purchase_items")
 }
 
-// TODO: Add more models in Week 7-8
-// - GSTReturn
+// GST Return Model (Week 7-8: GSTR-1 & GSTR-3B)
+model GSTReturn {
+  id                String    @id @default(uuid())
+  businessId        String    @map("business_id")
+  
+  // Return Details
+  returnType        String    @map("return_type") // gstr1, gstr3b, gstr2a, gstr2b
+  filingPeriod      String    @map("filing_period") // Format: "YYYY-MM" (e.g., "2026-01")
+  financialYear     String    @map("financial_year") // Format: "2025-2026"
+  
+  // Return Data (JSON)
+  returnData        Json      @map("return_data") // Complete return data in JSON format
+  
+  // Summary Fields
+  totalTaxLiability Decimal?  @map("total_tax_liability") @db.Decimal(12, 2)
+  totalItc          Decimal?  @map("total_itc") @db.Decimal(12, 2)
+  netTaxPayable     Decimal?  @map("net_tax_payable") @db.Decimal(12, 2)
+  interestPayable   Decimal?  @default(0) @map("interest_payable") @db.Decimal(12, 2)
+  lateFeesPayable   Decimal?  @default(0) @map("late_fees_payable") @db.Decimal(12, 2)
+  
+  // Filing Status
+  status            String    @default("draft") // draft, generated, validated, filed, accepted, rejected
+  generatedAt       DateTime? @map("generated_at")
+  filedAt           DateTime? @map("filed_at")
+  acknowledgeNumber String?   @map("acknowledge_number") // ARN from GST Portal
+  
+  // Validation
+  validationErrors  Json?     @map("validation_errors") // Array of validation errors
+  isValid           Boolean   @default(false) @map("is_valid")
+  
+  // Export Files
+  jsonFilePath      String?   @map("json_file_path") // Path to exported JSON file
+  excelFilePath     String?   @map("excel_file_path") // Path to exported Excel file
+  
+  // Metadata
+  notes             String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+  
+  // Relations
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  @@unique([businessId, returnType, filingPeriod])
+  @@index([businessId])
+  @@index([returnType])
+  @@index([filingPeriod])
+  @@index([status])
+  @@map("gst_returns")
+}
+
+// TODO: Add more models in Week 9-10
 // - Subscription
 // - AuditLog
 // - Notification
+// - Payment
 
 // See docs/02-DATABASE-SCHEMA.md for complete schema
