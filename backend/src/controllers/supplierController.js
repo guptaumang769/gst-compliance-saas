@@ -11,9 +11,23 @@ const supplierService = require('../services/supplierService');
  */
 async function createSupplier(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
     const supplierData = {
-      businessId,
+      businessId: business.id,
       ...req.body
     };
 
@@ -39,7 +53,21 @@ async function createSupplier(req, res) {
  */
 async function getSuppliers(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
     const filters = {
       supplierType: req.query.supplierType,
       search: req.query.search,
@@ -47,7 +75,7 @@ async function getSuppliers(req, res) {
       limit: parseInt(req.query.limit) || 50
     };
 
-    const result = await supplierService.getSuppliers(businessId, filters);
+    const result = await supplierService.getSuppliers(business.id, filters);
 
     res.status(200).json({
       success: true,
@@ -70,10 +98,23 @@ async function getSuppliers(req, res) {
  */
 async function getSupplierById(req, res) {
   try {
-    const businessId = req.user.businessId;
-    const supplierId = req.params.id;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
 
-    const supplier = await supplierService.getSupplierById(supplierId, businessId);
+    const supplierId = req.params.id;
+    const supplier = await supplierService.getSupplierById(supplierId, business.id);
 
     res.status(200).json({
       success: true,
@@ -95,11 +136,24 @@ async function getSupplierById(req, res) {
  */
 async function updateSupplier(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
     const supplierId = req.params.id;
     const updateData = req.body;
-
-    const supplier = await supplierService.updateSupplier(supplierId, businessId, updateData);
+    const supplier = await supplierService.updateSupplier(supplierId, business.id, updateData);
 
     res.status(200).json({
       success: true,
@@ -121,10 +175,23 @@ async function updateSupplier(req, res) {
  */
 async function deleteSupplier(req, res) {
   try {
-    const businessId = req.user.businessId;
-    const supplierId = req.params.id;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
 
-    await supplierService.deleteSupplier(supplierId, businessId);
+    const supplierId = req.params.id;
+    await supplierService.deleteSupplier(supplierId, business.id);
 
     res.status(200).json({
       success: true,
@@ -145,8 +212,22 @@ async function deleteSupplier(req, res) {
  */
 async function getSupplierStats(req, res) {
   try {
-    const businessId = req.user.businessId;
-    const stats = await supplierService.getSupplierStats(businessId);
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const stats = await supplierService.getSupplierStats(business.id);
 
     res.status(200).json({
       success: true,
