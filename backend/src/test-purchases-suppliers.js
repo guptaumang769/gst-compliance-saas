@@ -13,10 +13,22 @@ let authToken = '';
 let testSupplierId = '';
 let testPurchaseId = '';
 
-// Test user credentials (should exist from previous tests)
+// Test user credentials
 const testUser = {
   email: 'test@gstcompliance.com',
   password: 'Test@1234'
+};
+
+// Registration data (if auto-registration is needed)
+const registrationData = {
+  email: testUser.email,
+  password: testUser.password,
+  businessName: 'Test Business Pvt Ltd',
+  gstin: '27AAPFU0939F1ZV', // Valid Maharashtra GSTIN
+  pan: 'AAPFU0939F',
+  state: 'Maharashtra',
+  address: '123 Test Street, Mumbai',
+  phone: '9876543210'
 };
 
 // Color codes for console output
@@ -25,6 +37,7 @@ const colors = {
   red: '\x1b[31m',
   yellow: '\x1b[33m',
   blue: '\x1b[36m',
+  magenta: '\x1b[35m',
   reset: '\x1b[0m'
 };
 
@@ -32,7 +45,7 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
-// Setup: Login
+// Setup: Login (with auto-registration if needed)
 async function login() {
   log('\n🔐 Logging in...', 'blue');
   try {
@@ -41,9 +54,25 @@ async function login() {
     log('✅ Login successful\n', 'green');
     return true;
   } catch (error) {
-    log(`❌ Login failed: ${error.response?.data?.message || error.message}`, 'red');
-    log('💡 Please run: node src/test-auth.js first to create a test account', 'yellow');
-    return false;
+    log(`⚠️  Login failed. Attempting to register new account...`, 'yellow');
+    
+    try {
+      // Try to register
+      await axios.post(`${BASE_URL}/api/auth/register`, registrationData);
+      log('✅ Registration successful! Now logging in...', 'green');
+      
+      // Now login
+      const loginResponse = await axios.post(`${BASE_URL}/api/auth/login`, testUser);
+      authToken = loginResponse.data.token;
+      log('✅ Login successful\n', 'green');
+      return true;
+    } catch (regError) {
+      log(`❌ Registration/Login failed: ${regError.response?.data?.error || regError.message}`, 'red');
+      if (regError.response?.data) {
+        log(`   Details: ${JSON.stringify(regError.response.data)}`, 'red');
+      }
+      return false;
+    }
   }
 }
 

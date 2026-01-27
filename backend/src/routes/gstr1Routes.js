@@ -6,10 +6,10 @@
 const express = require('express');
 const router = express.Router();
 const gstr1Controller = require('../controllers/gstr1Controller');
-const { authenticate } = require('../middleware/authMiddleware');
+const { authenticateToken } = require('../middleware/authMiddleware');
 
 // All GSTR-1 routes require authentication
-router.use(authenticate);
+router.use(authenticateToken);
 
 // GSTR-1 operations
 router.post('/generate', gstr1Controller.generateGSTR1);

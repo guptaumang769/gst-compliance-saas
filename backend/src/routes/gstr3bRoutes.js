@@ -6,10 +6,10 @@
 const express = require('express');
 const router = express.Router();
 const gstr3bController = require('../controllers/gstr3bController');
-const { authenticate } = require('../middleware/authMiddleware');
+const { authenticateToken } = require('../middleware/authMiddleware');
 
 // All GSTR-3B routes require authentication
-router.use(authenticate);
+router.use(authenticateToken);
 
 // GSTR-3B operations
 router.post('/generate', gstr3bController.generateGSTR3B);

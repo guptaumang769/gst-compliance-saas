@@ -6,10 +6,10 @@
 const express = require('express');
 const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
-const { authenticate } = require('../middleware/authMiddleware');
+const { authenticateToken } = require('../middleware/authMiddleware');
 
 // All dashboard routes require authentication
-router.use(authenticate);
+router.use(authenticateToken);
 
 // Dashboard endpoints
 router.get('/overview', dashboardController.getDashboardOverview);

@@ -45,12 +45,15 @@ app.get('/api', (req, res) => {
       api: '/api',
       auth: '/api/auth ✅',
       customers: '/api/customers ✅',
-      invoices: '/api/invoices ✅',
+      invoices: '/api/invoices ✅ (PDF & Email)',
       suppliers: '/api/suppliers ✅',
       purchases: '/api/purchases ✅',
       dashboard: '/api/dashboard ✅',
-      gstr1: '/api/gstr1 ✅ NEW',
-      gstr3b: '/api/gstr3b ✅ NEW'
+      gstr1: '/api/gstr1 ✅',
+      gstr3b: '/api/gstr3b ✅',
+      subscriptions: '/api/subscriptions ✅ NEW',
+      payments: '/api/payments ✅ NEW',
+      webhooks: '/api/webhooks ✅ NEW'
     },
     documentation: 'See /docs folder in repository'
   });
@@ -79,6 +82,13 @@ app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 // ============================================
 app.use('/api/gstr1', require('./routes/gstr1Routes'));
 app.use('/api/gstr3b', require('./routes/gstr3bRoutes'));
+
+// ============================================
+// API Routes - Week 11-12: Subscription & Payments
+// ============================================
+app.use('/api/subscriptions', require('./routes/subscriptionRoutes'));
+app.use('/api/payments', require('./routes/paymentRoutes'));
+app.use('/api/webhooks', require('./routes/webhookRoutes'));
 
 // 404 handler
 app.use('*', (req, res) => {

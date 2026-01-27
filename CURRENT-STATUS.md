@@ -1,8 +1,8 @@
 # GST Compliance SaaS - Current Status
 
-**Last Updated:** Week 9-10 Complete  
-**Current Phase:** Invoice PDF & Email Service ✅  
-**Next Phase:** Subscription & Payments OR Frontend Development
+**Last Updated:** Week 11-12 Complete  
+**Current Phase:** Subscription & Payments (Razorpay) ✅  
+**Next Phase:** Frontend Development (React UI) - 90% MVP COMPLETE!
 
 ---
 
@@ -122,6 +122,47 @@
 - [x] Test email configuration
 - [x] Verify email setup
 - [x] Complete test suite (7 tests, all passing)
+- [x] Comprehensive documentation
+
+### Week 11-12: Subscription & Payments (Razorpay) ✅ NEW!
+- [x] **Subscription Plans ⭐⭐ CRITICAL**
+- [x] 4 tiers (Trial, Starter ₹999, Pro ₹2999, Enterprise ₹7999)
+- [x] Monthly & annual billing options
+- [x] Feature flags per plan
+- [x] Usage limits per plan (invoices, customers, suppliers)
+- [x] Plan comparison & recommendations
+- [x] **Razorpay Payment Integration ⭐⭐ CRITICAL**
+- [x] Create payment orders
+- [x] Payment verification & signature validation
+- [x] GST calculation on payments (18%)
+- [x] Payment tracking (orders, payments, status)
+- [x] Refund processing (full & partial)
+- [x] **Webhook Handling ⭐ CRITICAL**
+- [x] Payment captured webhooks
+- [x] Payment failed webhooks
+- [x] Refund processed webhooks
+- [x] Signature verification for security
+- [x] **Subscription Management**
+- [x] Get subscription status & usage
+- [x] Start 14-day free trial
+- [x] Upgrade/downgrade plans
+- [x] Cancel subscriptions
+- [x] Feature access control
+- [x] **Limit Enforcement ⭐⭐ CRITICAL**
+- [x] Invoice creation limits (middleware)
+- [x] Customer/supplier limits
+- [x] Feature-based access control
+- [x] Subscription expiry checks
+- [x] Usage warnings (80% threshold)
+- [x] **Database Updates**
+- [x] Payment model (Razorpay IDs, amounts, status)
+- [x] Business relation to payments
+- [x] Receipt generation
+- [x] **New API Endpoints (15+)**
+- [x] 8 subscription endpoints
+- [x] 6 payment endpoints
+- [x] 2 webhook endpoints
+- [x] Complete testing guide
 - [x] Comprehensive documentation
 
 ---

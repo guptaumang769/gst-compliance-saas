@@ -6,10 +6,10 @@
 const express = require('express');
 const router = express.Router();
 const purchaseController = require('../controllers/purchaseController');
-const { authenticate } = require('../middleware/authMiddleware');
+const { authenticateToken } = require('../middleware/authMiddleware');
 
 // All purchase routes require authentication
-router.use(authenticate);
+router.use(authenticateToken);
 
 // Purchase CRUD operations
 router.post('/', purchaseController.createPurchase);
