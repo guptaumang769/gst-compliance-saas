@@ -651,3 +651,90 @@ You now have a **complete accounting system**:
 - Alert on GST deadlines
 
 **Next milestone:** Auto-generate GST returns → Full compliance automation! 📄✨
+
+---
+
+## 🔧 Bug Fixes & Updates (January 27, 2026)
+
+### Critical Fixes Applied ✅
+
+#### 1. **Controller `businessId` Access Fix**
+**Issue:** All Week 5-12 controllers were accessing `req.user.businessId` which doesn't exist.
+
+**Root Cause:** Auth middleware only provides `req.user.userId`, not `businessId`.
+
+**Fixed Controllers:**
+- ✅ supplierController.js (6 methods)
+- ✅ purchaseController.js (7 methods)
+- ✅ dashboardController.js (6 methods)
+- ✅ gstr1Controller.js (3 methods)
+- ✅ gstr3bController.js (3 methods)
+
+**Total:** 25+ methods fixed across 5 controllers
+
+#### 2. **Purchase GST Calculation Fix**
+**Issue:** Wrong parameters passed to `calculateItemGST()` function.
+
+**Root Cause:** Was passing `itemName`, `quantity`, `unitPrice`, etc. instead of `taxableAmount`.
+
+**Fixed:**
+- ✅ Updated purchaseService.js to pass correct parameters
+- ✅ Added validation for `taxableAmount`
+- ✅ Added validation for `supplierStateCode` and `buyerStateCode`
+- ✅ Enhanced error messages for debugging
+
+#### 3. **GST Calculator Validation Enhancement**
+**Issue:** Validation didn't check for `NaN` or `null` values.
+
+**Fixed:**
+- ✅ Enhanced validation to check for `undefined`, `null`, `NaN`, and `<= 0`
+- ✅ Better error messages for invalid inputs
+
+### Test Status After Fixes 🧪
+
+```
+Week 2: Authentication              ✅ 7/7 tests passing
+Week 3-4: Customers & Invoices      ✅ 15/15 tests passing
+Week 5-6: Purchases & Suppliers     ⏳ 12 tests (ready for testing)
+Week 5-6: Dashboard                 ⏳ 7 tests (ready for testing)
+Week 7-8: GST Returns              ⏳ 6 tests (ready for testing)
+Week 9-10: PDF & Email             ⏳ 7 tests (ready for testing)
+```
+
+### Documentation Created 📖
+
+- ✅ `WEEK-5-12-CONTROLLER-FIXES.md` - Detailed controller fix documentation
+- ✅ `PURCHASE-TEST-FIX.md` - Purchase GST calculation fix guide
+- ✅ `FIXES-SUMMARY.md` - Complete overview of all fixes
+
+### Next Action Items ⏭️
+
+1. **Commit & Push (Company Laptop):**
+   ```bash
+   cd /Users/ugupta6/Downloads/AI-SaaS-Product/gst-compliance-saas
+   git add .
+   git commit -m "Fix: Purchase GST calculation and controller businessId access"
+   git push origin main
+   ```
+
+2. **Pull & Test (Personal Laptop):**
+   ```powershell
+   cd C:\Users\gupta\AI-SaaS-Project\gst-compliance-saas
+   git pull origin main
+   docker-compose down && docker-compose up -d
+   cd backend && npm run dev
+   ```
+
+3. **Run Tests:**
+   ```powershell
+   node .\src\test-purchases-suppliers.js
+   node .\src\test-dashboard.js
+   node .\src\test-gstr-returns.js
+   node .\src\test-pdf-email.js
+   ```
+
+**Expected:** All tests should now pass! ✅
+
+---
+
+**Last Updated:** January 27, 2026 - Bug fixes complete, ready for testing!

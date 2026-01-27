@@ -95,23 +95,33 @@ async function createPurchase(purchaseData) {
     // Calculate taxable amount
     const taxableAmount = parseFloat(quantity) * parseFloat(unitPrice);
 
+    // Validate taxable amount
+    if (!taxableAmount || taxableAmount <= 0) {
+      throw new Error(`Invalid taxable amount for item "${itemName}": quantity=${quantity}, unitPrice=${unitPrice}`);
+    }
+
     // Determine supply type (intra-state or inter-state)
     const buyerStateCode = business.stateCode;
     const supplierStateCode = supplier.stateCode;
+    
+    if (!supplierStateCode) {
+      throw new Error(`Supplier "${supplier.supplierName}" does not have a state code. Ensure supplier has a valid GSTIN.`);
+    }
+    
+    if (!buyerStateCode) {
+      throw new Error('Business does not have a state code. Ensure business has a valid GSTIN.');
+    }
+
     const transactionType = gstCalculator.getTransactionType(supplierStateCode, buyerStateCode);
 
     // Calculate GST for this item
     const gstResult = gstCalculator.calculateItemGST({
-      itemName,
-      quantity: parseFloat(quantity),
-      unitPrice: parseFloat(unitPrice),
-      discountAmount: 0,
+      taxableAmount,
       gstRate: parseFloat(gstRate),
-      cessRate: parseFloat(cessRate) || 0,
       sellerStateCode: supplierStateCode,
       buyerStateCode,
-      hsnCode,
-      sacCode
+      invoiceType: 'b2b',
+      cessRate: parseFloat(cessRate) || 0
     });
 
     // Calculate ITC for this item
