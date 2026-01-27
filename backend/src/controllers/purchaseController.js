@@ -11,9 +11,23 @@ const purchaseService = require('../services/purchaseService');
  */
 async function createPurchase(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
     const purchaseData = {
-      businessId,
+      businessId: business.id,
       ...req.body
     };
 
@@ -39,7 +53,22 @@ async function createPurchase(req, res) {
  */
 async function getPurchases(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const businessId = business.id;
     const filters = {
       supplierId: req.query.supplierId,
       startDate: req.query.startDate,
@@ -73,7 +102,22 @@ async function getPurchases(req, res) {
  */
 async function getPurchaseById(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const businessId = business.id;
     const purchaseId = req.params.id;
 
     const purchase = await purchaseService.getPurchaseById(purchaseId, businessId);
@@ -98,7 +142,22 @@ async function getPurchaseById(req, res) {
  */
 async function updatePurchase(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const businessId = business.id;
     const purchaseId = req.params.id;
     const updateData = req.body;
 
@@ -124,7 +183,22 @@ async function updatePurchase(req, res) {
  */
 async function deletePurchase(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const businessId = business.id;
     const purchaseId = req.params.id;
 
     await purchaseService.deletePurchase(purchaseId, businessId);
@@ -148,7 +222,22 @@ async function deletePurchase(req, res) {
  */
 async function getPurchaseStats(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const businessId = business.id;
     const filters = {
       startDate: req.query.startDate,
       endDate: req.query.endDate,
@@ -178,7 +267,22 @@ async function getPurchaseStats(req, res) {
  */
 async function calculateItcForPeriod(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    
+    // Get user's business
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const businessId = business.id;
     const { year, month } = req.params;
 
     const itcData = await purchaseService.calculateItcForPeriod(
