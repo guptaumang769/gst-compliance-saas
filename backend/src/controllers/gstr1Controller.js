@@ -11,7 +11,19 @@ const gstr1Service = require('../services/gstr1Service');
  */
 async function generateGSTR1(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
     const { month, year } = req.body;
 
     if (!month || !year) {
@@ -21,7 +33,7 @@ async function generateGSTR1(req, res) {
       });
     }
 
-    const gstr1 = await gstr1Service.generateGSTR1(businessId, month, year);
+    const gstr1 = await gstr1Service.generateGSTR1(business.id, month, year);
 
     res.status(200).json({
       success: true,
@@ -43,10 +55,22 @@ async function generateGSTR1(req, res) {
  */
 async function getGSTR1(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
     const { year, month } = req.params;
 
-    const gstr1 = await gstr1Service.getGSTR1(businessId, parseInt(month), parseInt(year));
+    const gstr1 = await gstr1Service.getGSTR1(business.id, parseInt(month), parseInt(year));
 
     res.status(200).json({
       success: true,
@@ -68,10 +92,22 @@ async function getGSTR1(req, res) {
  */
 async function exportGSTR1JSON(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
     const { year, month } = req.params;
 
-    const gstr1 = await gstr1Service.getGSTR1(businessId, parseInt(month), parseInt(year));
+    const gstr1 = await gstr1Service.getGSTR1(business.id, parseInt(month), parseInt(year));
     const jsonData = gstr1Service.exportGSTR1ToJSON(gstr1.returnData);
 
     // Set headers for file download

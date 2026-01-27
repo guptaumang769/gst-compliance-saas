@@ -98,14 +98,20 @@ async function createPurchase(purchaseData) {
     // Determine supply type (intra-state or inter-state)
     const buyerStateCode = business.stateCode;
     const supplierStateCode = supplier.stateCode;
-    const supplyType = gstCalculator.determineSupplyType(supplierStateCode, buyerStateCode);
+    const transactionType = gstCalculator.getTransactionType(supplierStateCode, buyerStateCode);
 
-    // Calculate GST
-    const gstResult = gstCalculator.calculateGST({
-      taxableAmount,
+    // Calculate GST for this item
+    const gstResult = gstCalculator.calculateItemGST({
+      itemName,
+      quantity: parseFloat(quantity),
+      unitPrice: parseFloat(unitPrice),
+      discountAmount: 0,
       gstRate: parseFloat(gstRate),
-      cessRate: parseFloat(cessRate),
-      supplyType
+      cessRate: parseFloat(cessRate) || 0,
+      sellerStateCode: supplierStateCode,
+      buyerStateCode,
+      hsnCode,
+      sacCode
     });
 
     // Calculate ITC for this item
