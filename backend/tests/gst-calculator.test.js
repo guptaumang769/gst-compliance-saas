@@ -11,7 +11,7 @@ const {
   calculateInvoiceGST,
   getTransactionType,
   isValidGSTRate
-} = require('./services/gstCalculator');
+} = require('../src/services/gstCalculator');
 
 console.log('\n🧮 ==========================================');
 console.log('   GST Calculator Test Suite');

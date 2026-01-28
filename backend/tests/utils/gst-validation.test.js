@@ -11,7 +11,7 @@ const {
   getStateName,
   validateHSNSAC,
   validateGSTRate
-} = require('./gstValidation');
+} = require('../../src/utils/gstValidation');
 
 console.log('🧪 Testing GST Validation Utilities\n');
 console.log('═══════════════════════════════════════\n');
