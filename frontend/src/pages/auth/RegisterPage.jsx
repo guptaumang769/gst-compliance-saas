@@ -138,6 +138,11 @@ function RegisterPage() {
         businessEmail: values.email,
       };
 
+      // DEBUG: Log registration data
+      console.log('=== FRONTEND: Sending Registration Data ===');
+      console.log(JSON.stringify(registrationData, null, 2));
+      console.log('=== END ===');
+
       const result = await register(registrationData);
       setLoading(false);
 
