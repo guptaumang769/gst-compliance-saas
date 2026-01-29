@@ -12,7 +12,23 @@ const authService = require('../services/authService');
  */
 async function register(req, res) {
   try {
-    const { email, password, businessName, gstin, pan, state, address, phone } = req.body;
+    const { 
+      email, 
+      password, 
+      businessName, 
+      gstin, 
+      pan, 
+      state,
+      addressLine1,
+      addressLine2,
+      city,
+      pincode,
+      businessType,
+      phone,
+      businessEmail
+    } = req.body;
+    
+    console.log('Registering user with data:', JSON.stringify(req.body, null, 2));
     
     // Validate required fields
     if (!email || !password || !businessName || !gstin || !pan || !state) {
@@ -31,8 +47,13 @@ async function register(req, res) {
       gstin,
       pan,
       state,
-      address,
-      phone
+      addressLine1,
+      addressLine2,
+      city,
+      pincode,
+      businessType,
+      phone,
+      businessEmail
     });
     
     // Return success response
