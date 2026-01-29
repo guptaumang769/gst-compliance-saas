@@ -14,7 +14,21 @@ const { validateGSTIN, validatePAN, extractStateCode } = require('../utils/gstVa
  * ✅ GST Integration: Validates GSTIN during registration
  */
 async function register(userData) {
-  const { email, password, businessName, gstin, pan, state, address, phone } = userData;
+  const { 
+    email, 
+    password, 
+    businessName, 
+    gstin, 
+    pan, 
+    state, 
+    addressLine1,
+    addressLine2,
+    city,
+    pincode,
+    phone,
+    businessEmail,
+    businessType
+  } = userData;
   
   try {
     // 1. Validate email format
@@ -88,13 +102,14 @@ async function register(userData) {
           stateCode: stateCodeFromGSTIN,
           state,
           registrationDate: new Date(),
-          addressLine1: address,
-          city: state, // Can be extracted from address in future
-          pincode: '000000', // Can be added to registration form
-          businessType: 'regular',
+          addressLine1,
+          addressLine2: addressLine2 || null,
+          city,
+          pincode,
+          businessType: businessType || 'Proprietorship',
           filingFrequency: 'monthly',
           phone: phone || null,
-          email: email
+          email: businessEmail || email
         }
       });
       
