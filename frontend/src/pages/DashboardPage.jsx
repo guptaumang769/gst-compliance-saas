@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -17,6 +18,7 @@ import {
   Button,
   Avatar,
   LinearProgress,
+  Alert,
 } from '@mui/material';
 import {
   TrendingUp,
@@ -41,11 +43,12 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
+import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
-import { dashboardAPI } from '../services/api';
+import { dashboardAPI, invoiceAPI, customerAPI } from '../services/api';
 
 // Stat Card Component
-function StatCard({ title, value, change, icon, color, trend }) {
+function StatCard({ title, value, change, icon, color, trend, loading }) {
   const isPositive = trend === 'up';
   
   return (
@@ -61,42 +64,50 @@ function StatCard({ title, value, change, icon, color, trend }) {
       }}
     >
       <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Box>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              {title}
-            </Typography>
-            <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-              {value}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              {isPositive ? (
-                <TrendingUp sx={{ fontSize: 16, color: 'success.main' }} />
-              ) : (
-                <TrendingDown sx={{ fontSize: 16, color: 'error.main' }} />
-              )}
-              <Typography
-                variant="body2"
-                sx={{ color: isPositive ? 'success.main' : 'error.main', fontWeight: 600 }}
-              >
-                {change}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                vs last month
-              </Typography>
-            </Box>
+        {loading ? (
+          <Box sx={{ py: 3 }}>
+            <LinearProgress />
           </Box>
-          <Avatar
-            sx={{
-              background: `linear-gradient(135deg, ${color}40 0%, ${color}20 100%)`,
-              color: color,
-              width: 56,
-              height: 56,
-            }}
-          >
-            {icon}
-          </Avatar>
-        </Box>
+        ) : (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Box>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                {title}
+              </Typography>
+              <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
+                {value}
+              </Typography>
+              {change && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  {isPositive ? (
+                    <TrendingUp sx={{ fontSize: 16, color: 'success.main' }} />
+                  ) : (
+                    <TrendingDown sx={{ fontSize: 16, color: 'error.main' }} />
+                  )}
+                  <Typography
+                    variant="body2"
+                    sx={{ color: isPositive ? 'success.main' : 'error.main', fontWeight: 600 }}
+                  >
+                    {change}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    vs last month
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+            <Avatar
+              sx={{
+                background: `linear-gradient(135deg, ${color}40 0%, ${color}20 100%)`,
+                color: color,
+                width: 56,
+                height: 56,
+              }}
+            >
+              {icon}
+            </Avatar>
+          </Box>
+        )}
       </CardContent>
     </Card>
   );
@@ -104,73 +115,118 @@ function StatCard({ title, value, change, icon, color, trend }) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);
+  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [recentInvoices, setRecentInvoices] = useState([]);
+  const [topCustomers, setTopCustomers] = useState([]);
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setStats({
-        revenue: '₹2,45,680',
-        invoices: 45,
-        customers: 28,
-        gstTax: '₹44,223',
-      });
-      setLoading(false);
-    }, 500);
+    fetchDashboardData();
   }, []);
 
-  // Sample data for charts
-  const revenueData = [
-    { month: 'Jul', revenue: 180000, tax: 32400 },
-    { month: 'Aug', revenue: 210000, tax: 37800 },
-    { month: 'Sep', revenue: 195000, tax: 35100 },
-    { month: 'Oct', revenue: 225000, tax: 40500 },
-    { month: 'Nov', revenue: 240000, tax: 43200 },
-    { month: 'Dec', revenue: 245680, tax: 44223 },
-  ];
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  const gstBreakdown = [
-    { type: 'CGST', amount: 20000 },
-    { type: 'SGST', amount: 20000 },
-    { type: 'IGST', amount: 4223 },
-  ];
+      // Get current date for filtering
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
 
-  const recentInvoices = [
-    { id: 'INV-045', customer: 'Acme Corp', amount: '₹45,000', status: 'Paid', date: '2026-01-28' },
-    { id: 'INV-044', customer: 'Tech Solutions', amount: '₹32,500', status: 'Pending', date: '2026-01-27' },
-    { id: 'INV-043', customer: 'Global Traders', amount: '₹67,800', status: 'Paid', date: '2026-01-26' },
-    { id: 'INV-042', customer: 'XYZ Industries', amount: '₹28,900', status: 'Overdue', date: '2026-01-20' },
-    { id: 'INV-041', customer: 'Prime Enterprises', amount: '₹54,300', status: 'Paid', date: '2026-01-19' },
-  ];
+      // Fetch all data in parallel
+      const [summaryRes, invoicesRes, customersRes] = await Promise.all([
+        dashboardAPI.getSummary({ month: currentMonth, year: currentYear }),
+        invoiceAPI.getAll({ limit: 5, sortBy: 'invoiceDate', order: 'desc' }),
+        dashboardAPI.getTopCustomers({ limit: 5 }),
+      ]);
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Paid':
-        return 'success';
-      case 'Pending':
-        return 'warning';
-      case 'Overdue':
-        return 'error';
-      default:
-        return 'default';
+      setDashboardData(summaryRes.data);
+      setRecentInvoices(invoicesRes.data.invoices || []);
+      setTopCustomers(customersRes.data.customers || []);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError(err.response?.data?.message || 'Failed to load dashboard data');
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) {
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(amount || 0);
+  };
+
+  const getStatusColor = (status) => {
+    const statusLower = status?.toLowerCase();
+    if (statusLower === 'paid') return 'success';
+    if (statusLower === 'pending') return 'warning';
+    if (statusLower === 'overdue') return 'error';
+    return 'default';
+  };
+
+  const calculateTrend = (current, previous) => {
+    if (!previous || previous === 0) return null;
+    const change = ((current - previous) / previous) * 100;
+    return {
+      value: `${change > 0 ? '+' : ''}${change.toFixed(1)}%`,
+      trend: change >= 0 ? 'up' : 'down',
+    };
+  };
+
+  // Prepare chart data from dashboard summary
+  const getRevenueChartData = () => {
+    if (!dashboardData?.monthlyData) return [];
+    
+    return dashboardData.monthlyData.map((item) => ({
+      month: format(new Date(item.year, item.month - 1), 'MMM'),
+      revenue: item.totalRevenue || 0,
+      tax: item.totalTax || 0,
+    }));
+  };
+
+  const getGSTBreakdownData = () => {
+    if (!dashboardData?.summary) return [];
+
+    const { totalCGST = 0, totalSGST = 0, totalIGST = 0 } = dashboardData.summary;
+    
+    return [
+      { type: 'CGST', amount: totalCGST },
+      { type: 'SGST', amount: totalSGST },
+      { type: 'IGST', amount: totalIGST },
+    ];
+  };
+
+  if (error) {
     return (
       <Box>
-        <LinearProgress />
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+        <Button variant="contained" onClick={fetchDashboardData}>
+          Retry
+        </Button>
       </Box>
     );
   }
+
+  const summary = dashboardData?.summary || {};
+  const revenueTrend = calculateTrend(summary.totalRevenue, summary.previousMonthRevenue);
+  const invoiceTrend = calculateTrend(summary.totalInvoices, summary.previousMonthInvoices);
+  const customerTrend = calculateTrend(summary.totalCustomers, summary.previousMonthCustomers);
+  const taxTrend = calculateTrend(summary.totalTax, summary.previousMonthTax);
 
   return (
     <Box>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
-          Welcome back, {user?.name || 'User'}! 👋
+          Welcome back, {user?.name || user?.email?.split('@')[0] || 'User'}! 👋
         </Typography>
         <Typography variant="body1" color="text.secondary">
           Here's what's happening with your business today.
@@ -182,41 +238,45 @@ export default function DashboardPage() {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Total Revenue"
-            value={stats?.revenue}
-            change="+12.5%"
-            trend="up"
+            value={formatCurrency(summary.totalRevenue)}
+            change={revenueTrend?.value}
+            trend={revenueTrend?.trend}
             icon={<AccountBalance />}
             color="#6366F1"
+            loading={loading}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Total Invoices"
-            value={stats?.invoices}
-            change="+8.2%"
-            trend="up"
+            value={summary.totalInvoices || 0}
+            change={invoiceTrend?.value}
+            trend={invoiceTrend?.trend}
             icon={<Receipt />}
             color="#8B5CF6"
+            loading={loading}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Total Customers"
-            value={stats?.customers}
-            change="+4.3%"
-            trend="up"
+            value={summary.totalCustomers || 0}
+            change={customerTrend?.value}
+            trend={customerTrend?.trend}
             icon={<People />}
             color="#10B981"
+            loading={loading}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="GST Tax Collected"
-            value={stats?.gstTax}
-            change="+15.8%"
-            trend="up"
+            value={formatCurrency(summary.totalTax)}
+            change={taxTrend?.value}
+            trend={taxTrend?.trend}
             icon={<ShoppingCart />}
             color="#F59E0B"
+            loading={loading}
           />
         </Grid>
       </Grid>
@@ -240,47 +300,60 @@ export default function DashboardPage() {
                   <MoreVert />
                 </IconButton>
               </Box>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={revenueData}>
-                  <defs>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorTax" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="month" stroke="#6B7280" />
-                  <YAxis stroke="#6B7280" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #E5E7EB',
-                      borderRadius: '8px',
-                    }}
-                  />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#6366F1"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorRevenue)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="tax"
-                    stroke="#8B5CF6"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorTax)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {loading ? (
+                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <LinearProgress sx={{ width: '50%' }} />
+                </Box>
+              ) : getRevenueChartData().length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={getRevenueChartData()}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorTax" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis dataKey="month" stroke="#6B7280" />
+                    <YAxis stroke="#6B7280" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: '8px',
+                      }}
+                      formatter={(value) => formatCurrency(value)}
+                    />
+                    <Legend />
+                    <Area
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#6366F1"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorRevenue)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="tax"
+                      stroke="#8B5CF6"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorTax)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Typography color="text.secondary">
+                    No data available. Create your first invoice to see the chart!
+                  </Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -295,21 +368,34 @@ export default function DashboardPage() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                 Current month tax collection
               </Typography>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={gstBreakdown}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="type" stroke="#6B7280" />
-                  <YAxis stroke="#6B7280" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #E5E7EB',
-                      borderRadius: '8px',
-                    }}
-                  />
-                  <Bar dataKey="amount" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {loading ? (
+                <Box sx={{ height: 250, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <LinearProgress sx={{ width: '50%' }} />
+                </Box>
+              ) : getGSTBreakdownData().some(item => item.amount > 0) ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={getGSTBreakdownData()}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis dataKey="type" stroke="#6B7280" />
+                    <YAxis stroke="#6B7280" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: '8px',
+                      }}
+                      formatter={(value) => formatCurrency(value)}
+                    />
+                    <Bar dataKey="amount" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <Box sx={{ height: 250, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Typography color="text.secondary" align="center">
+                    No GST data available yet
+                  </Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -330,6 +416,7 @@ export default function DashboardPage() {
             <Button
               variant="contained"
               startIcon={<Add />}
+              onClick={() => navigate('/invoices')}
               sx={{
                 background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
                 textTransform: 'none',
@@ -339,62 +426,96 @@ export default function DashboardPage() {
               New Invoice
             </Button>
           </Box>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>Invoice ID</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Customer</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {recentInvoices.map((invoice) => (
-                  <TableRow
-                    key={invoice.id}
-                    sx={{
-                      '&:hover': {
-                        backgroundColor: '#F9FAFB',
-                      },
-                    }}
-                  >
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600}>
-                        {invoice.id}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{invoice.customer}</TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={600}>
-                        {invoice.amount}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={invoice.status}
-                        color={getStatusColor(invoice.status)}
-                        size="small"
-                        sx={{ fontWeight: 600 }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {invoice.date}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <IconButton size="small">
-                        <ArrowForward fontSize="small" />
-                      </IconButton>
-                    </TableCell>
+          {loading ? (
+            <LinearProgress />
+          ) : recentInvoices.length > 0 ? (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Invoice Number</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Customer</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {recentInvoices.map((invoice) => (
+                    <TableRow
+                      key={invoice.id}
+                      sx={{
+                        '&:hover': {
+                          backgroundColor: '#F9FAFB',
+                          cursor: 'pointer',
+                        },
+                      }}
+                      onClick={() => navigate(`/invoices/${invoice.id}`)}
+                    >
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>
+                          {invoice.invoiceNumber}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{invoice.customer?.customerName || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={600}>
+                          {formatCurrency(invoice.grandTotal)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={invoice.status || 'Pending'}
+                          color={getStatusColor(invoice.status)}
+                          size="small"
+                          sx={{ fontWeight: 600 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {invoice.invoiceDate ? format(new Date(invoice.invoiceDate), 'dd MMM yyyy') : 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <IconButton 
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/invoices/${invoice.id}`);
+                          }}
+                        >
+                          <ArrowForward fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Box sx={{ py: 4, textAlign: 'center' }}>
+              <Receipt sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No invoices yet
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Create your first invoice to start tracking revenue
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => navigate('/invoices')}
+                sx={{
+                  background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                }}
+              >
+                Create Invoice
+              </Button>
+            </Box>
+          )}
         </CardContent>
       </Card>
     </Box>
