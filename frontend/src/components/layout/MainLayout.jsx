@@ -1,201 +1,316 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Box,
-  Drawer,
   AppBar,
+  Box,
   Toolbar,
-  List,
-  Typography,
-  Divider,
   IconButton,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Avatar,
+  Typography,
   Menu,
   MenuItem,
+  Container,
+  Avatar,
+  Button,
+  Tooltip,
+  Badge,
+  Divider,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
-  Menu as MenuIcon,
   Dashboard,
-  People,
   Receipt,
-  LocalShipping,
+  People,
   ShoppingCart,
   Assessment,
   Settings,
+  Notifications,
   Logout,
   AccountCircle,
+  Menu as MenuIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 
-const drawerWidth = 240;
-
-const menuItems = [
-  { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-  { text: 'Customers', icon: <People />, path: '/customers' },
-  { text: 'Invoices', icon: <Receipt />, path: '/invoices' },
-  { text: 'Suppliers', icon: <LocalShipping />, path: '/suppliers' },
-  { text: 'Purchases', icon: <ShoppingCart />, path: '/purchases' },
-  { text: 'GST Returns', icon: <Assessment />, path: '/gst-returns' },
-  { text: 'Settings', icon: <Settings />, path: '/settings' },
+const navItems = [
+  { label: 'Dashboard', path: '/dashboard', icon: <Dashboard /> },
+  { label: 'Invoices', path: '/invoices', icon: <Receipt /> },
+  { label: 'Customers', path: '/customers', icon: <People /> },
+  { label: 'Purchases', path: '/purchases', icon: <ShoppingCart /> },
+  { label: 'GST Returns', path: '/gst-returns', icon: <Assessment /> },
 ];
 
-function MainLayout({ children }) {
+export default function MainLayout() {
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
+  const [anchorElUser, setAnchorElUser] = useState(null);
+  const [anchorElNotifications, setAnchorElNotifications] = useState(null);
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
+  const handleOpenUserMenu = (event) => {
+    setAnchorElUser(event.currentTarget);
   };
 
-  const handleMenuClick = (event) => {
-    setAnchorEl(event.currentTarget);
+  const handleCloseUserMenu = () => {
+    setAnchorElUser(null);
   };
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
+  const handleOpenNotifications = (event) => {
+    setAnchorElNotifications(event.currentTarget);
+  };
+
+  const handleCloseNotifications = () => {
+    setAnchorElNotifications(null);
   };
 
   const handleLogout = () => {
-    handleMenuClose();
+    handleCloseUserMenu();
     logout();
     navigate('/login');
   };
 
-  const drawer = (
-    <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
-          GST SaaS
-        </Typography>
-      </Toolbar>
-      <Divider />
-      <List>
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              selected={location.pathname === item.path}
-              onClick={() => navigate(item.path)}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
-    </div>
-  );
+  const handleNavigation = (path) => {
+    navigate(path);
+  };
+
+  const isActivePath = (path) => location.pathname === path;
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {/* Top Navigation Bar */}
       <AppBar
-        position="fixed"
+        position="sticky"
+        elevation={0}
         sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
+          background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {menuItems.find((item) => item.path === location.pathname)?.text || 'Dashboard'}
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
-              {user?.business?.businessName || 'Business Name'}
-            </Typography>
-            <IconButton
-              onClick={handleMenuClick}
-              size="small"
-              sx={{ ml: 2 }}
-              aria-controls={anchorEl ? 'account-menu' : undefined}
-              aria-haspopup="true"
-              aria-expanded={anchorEl ? 'true' : undefined}
+        <Container maxWidth="xl">
+          <Toolbar disableGutters sx={{ minHeight: { xs: 64, sm: 70 } }}>
+            {/* Logo */}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                mr: 4,
+                cursor: 'pointer',
+              }}
+              onClick={() => navigate('/dashboard')}
             >
-              <Avatar sx={{ width: 32, height: 32 }}>
-                {user?.email?.charAt(0).toUpperCase()}
-              </Avatar>
-            </IconButton>
-          </Box>
-          <Menu
-            anchorEl={anchorEl}
-            id="account-menu"
-            open={Boolean(anchorEl)}
-            onClose={handleMenuClose}
-            onClick={handleMenuClose}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-          >
-            <MenuItem onClick={() => navigate('/settings')}>
-              <ListItemIcon>
-                <AccountCircle fontSize="small" />
-              </ListItemIcon>
-              Profile
-            </MenuItem>
-            <MenuItem onClick={handleLogout}>
-              <ListItemIcon>
-                <Logout fontSize="small" />
-              </ListItemIcon>
-              Logout
-            </MenuItem>
-          </Menu>
-        </Toolbar>
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 2,
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mr: 1.5,
+                }}
+              >
+                <Typography variant="h6" fontWeight={700} color="white">
+                  G
+                </Typography>
+              </Box>
+              <Typography
+                variant="h6"
+                noWrap
+                sx={{
+                  fontWeight: 700,
+                  color: 'white',
+                  display: { xs: 'none', sm: 'block' },
+                }}
+              >
+                GST Compliance
+              </Typography>
+            </Box>
+
+            {/* Navigation Items */}
+            <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' }, gap: 1 }}>
+              {navItems.map((item) => (
+                <Button
+                  key={item.path}
+                  onClick={() => handleNavigation(item.path)}
+                  startIcon={item.icon}
+                  sx={{
+                    color: 'white',
+                    px: 2,
+                    py: 1,
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    fontSize: '0.9375rem',
+                    fontWeight: isActivePath(item.path) ? 600 : 500,
+                    backgroundColor: isActivePath(item.path)
+                      ? 'rgba(255, 255, 255, 0.15)'
+                      : 'transparent',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    },
+                  }}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </Box>
+
+            {/* Right Side Icons */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {/* Notifications */}
+              <Tooltip title="Notifications">
+                <IconButton
+                  onClick={handleOpenNotifications}
+                  sx={{ color: 'white' }}
+                >
+                  <Badge badgeContent={3} color="error">
+                    <Notifications />
+                  </Badge>
+                </IconButton>
+              </Tooltip>
+
+              {/* User Menu */}
+              <Tooltip title="Account settings">
+                <IconButton onClick={handleOpenUserMenu} sx={{ p: 0, ml: 1 }}>
+                  <Avatar
+                    sx={{
+                      bgcolor: 'rgba(255, 255, 255, 0.2)',
+                      color: 'white',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {user?.name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
+                  </Avatar>
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Toolbar>
+        </Container>
       </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
+
+      {/* Notifications Menu */}
+      <Menu
+        anchorEl={anchorElNotifications}
+        open={Boolean(anchorElNotifications)}
+        onClose={handleCloseNotifications}
+        PaperProps={{
+          sx: {
+            mt: 1.5,
+            minWidth: 320,
+            borderRadius: 2,
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+          },
+        }}
       >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true,
-          }}
-          sx={{
-            display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-          }}
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <Typography variant="subtitle1" fontWeight={600}>
+            Notifications
+          </Typography>
+        </Box>
+        <Divider />
+        <MenuItem onClick={handleCloseNotifications} sx={{ py: 1.5 }}>
+          <ListItemText
+            primary="GST Return due in 3 days"
+            secondary="GSTR-1 for December 2025"
+            primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }}
+            secondaryTypographyProps={{ fontSize: '0.8rem' }}
+          />
+        </MenuItem>
+        <MenuItem onClick={handleCloseNotifications} sx={{ py: 1.5 }}>
+          <ListItemText
+            primary="Invoice #INV-001 is overdue"
+            secondary="Payment pending from ABC Corp"
+            primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }}
+            secondaryTypographyProps={{ fontSize: '0.8rem' }}
+          />
+        </MenuItem>
+        <MenuItem onClick={handleCloseNotifications} sx={{ py: 1.5 }}>
+          <ListItemText
+            primary="New purchase recorded"
+            secondary="Purchase from XYZ Suppliers"
+            primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }}
+            secondaryTypographyProps={{ fontSize: '0.8rem' }}
+          />
+        </MenuItem>
+        <Divider />
+        <MenuItem
+          onClick={handleCloseNotifications}
+          sx={{ justifyContent: 'center', py: 1.5 }}
         >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          <Typography variant="body2" color="primary" fontWeight={600}>
+            View all notifications
+          </Typography>
+        </MenuItem>
+      </Menu>
+
+      {/* User Menu */}
+      <Menu
+        anchorEl={anchorElUser}
+        open={Boolean(anchorElUser)}
+        onClose={handleCloseUserMenu}
+        PaperProps={{
+          sx: {
+            mt: 1.5,
+            minWidth: 240,
+            borderRadius: 2,
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+          },
+        }}
+      >
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <Typography variant="subtitle2" fontWeight={600}>
+            {user?.name || 'User'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" fontSize="0.8rem">
+            {user?.email}
+          </Typography>
+        </Box>
+        <Divider />
+        <MenuItem
+          onClick={() => {
+            handleCloseUserMenu();
+            navigate('/settings');
           }}
-          open
+          sx={{ py: 1.5 }}
         >
-          {drawer}
-        </Drawer>
-      </Box>
+          <ListItemIcon>
+            <AccountCircle fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Profile</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            handleCloseUserMenu();
+            navigate('/settings');
+          }}
+          sx={{ py: 1.5 }}
+        >
+          <ListItemIcon>
+            <Settings fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Settings</ListItemText>
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={handleLogout} sx={{ py: 1.5, color: 'error.main' }}>
+          <ListItemIcon>
+            <Logout fontSize="small" color="error" />
+          </ListItemIcon>
+          <ListItemText>Logout</ListItemText>
+        </MenuItem>
+      </Menu>
+
+      {/* Main Content */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          mt: 8,
+          backgroundColor: '#F9FAFB',
+          minHeight: 'calc(100vh - 70px)',
         }}
       >
-        {children}
+        <Container maxWidth="xl" sx={{ py: 4 }}>
+          <Outlet />
+        </Container>
       </Box>
     </Box>
   );
 }
-
-export default MainLayout;
