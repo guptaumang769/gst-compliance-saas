@@ -78,6 +78,16 @@ a {
   transition: all 0.2s ease;
 }
 
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+}
+
 /* Responsive utilities */
 @media (max-width: 600px) {
   .hide-on-mobile {
