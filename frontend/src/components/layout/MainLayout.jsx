@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
   Box,
@@ -39,7 +39,7 @@ const navItems = [
   { label: 'GST Returns', path: '/gst-returns', icon: <Assessment /> },
 ];
 
-export default function MainLayout() {
+export default function MainLayout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -308,7 +308,7 @@ export default function MainLayout() {
         }}
       >
         <Container maxWidth="xl" sx={{ py: 4 }}>
-          <Outlet />
+          {children}
         </Container>
       </Box>
     </Box>
