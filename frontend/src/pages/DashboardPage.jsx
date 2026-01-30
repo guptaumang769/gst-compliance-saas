@@ -113,6 +113,8 @@ export default function DashboardPage() {
   const [recentInvoices, setRecentInvoices] = useState([]);
 
   useEffect(() => {
+    console.log('🔐 Current user:', user);
+    console.log('🔑 Auth token:', localStorage.getItem('token'));
     fetchDashboardData();
   }, []);
 
@@ -125,14 +127,21 @@ export default function DashboardPage() {
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
 
+      console.log('🔍 Fetching dashboard data...', { month: currentMonth, year: currentYear });
+
       const [summaryRes, invoicesRes] = await Promise.all([
         dashboardAPI.getSummary({ month: currentMonth, year: currentYear }),
         invoiceAPI.getAll({ limit: 5, sortBy: 'invoiceDate', order: 'desc' }),
       ]);
 
+      console.log('✅ Dashboard API Response:', summaryRes.data);
+      console.log('✅ Invoices API Response:', invoicesRes.data);
+
       setDashboardData(summaryRes.data);
       setRecentInvoices(invoicesRes.data.invoices || []);
     } catch (err) {
+      console.error('❌ Dashboard API Error:', err);
+      console.error('❌ Error Response:', err.response?.data);
       const errorMessage = handleApiError(err, MESSAGES.ERROR_LOADING_DATA);
       setError(errorMessage);
     } finally {
