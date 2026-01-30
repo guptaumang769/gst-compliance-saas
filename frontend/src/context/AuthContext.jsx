@@ -21,16 +21,22 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       const savedUser = localStorage.getItem('user');
 
+      console.log('🔐 AuthContext Init - Token:', token ? 'EXISTS' : 'NONE');
+      console.log('🔐 AuthContext Init - Saved User:', savedUser ? 'EXISTS' : 'NONE');
+
       if (token && savedUser) {
         try {
-          setUser(JSON.parse(savedUser));
+          const parsedUser = JSON.parse(savedUser);
+          console.log('✅ Setting user from localStorage:', parsedUser);
+          setUser(parsedUser);
         } catch (error) {
-          console.error('Error parsing saved user:', error);
+          console.error('❌ Error parsing saved user:', error);
           localStorage.removeItem('token');
           localStorage.removeItem('user');
         }
       }
       setLoading(false);
+      console.log('✅ AuthContext initialized');
     };
 
     initAuth();
@@ -38,16 +44,25 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      console.log('🔑 Attempting login for:', email);
       const response = await authAPI.login({ email, password });
+      console.log('✅ Login response:', response.data);
+      
       const { token, user: userData } = response.data;
+
+      console.log('💾 Saving to localStorage - Token:', token ? 'EXISTS' : 'MISSING');
+      console.log('💾 Saving to localStorage - User:', userData);
 
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
 
+      console.log('✅ User state updated:', userData);
+
       toast.success('Login successful!');
       return { success: true };
     } catch (error) {
+      console.error('❌ Login error:', error);
       const message = error.response?.data?.message || 'Login failed';
       toast.error(message);
       return { success: false, message };
