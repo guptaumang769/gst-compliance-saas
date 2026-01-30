@@ -14,14 +14,19 @@ import SettingsPage from './pages/SettingsPage';
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
 
+  console.log('🔒 ProtectedRoute - Loading:', loading, 'User:', user);
+
   if (loading) {
+    console.log('⏳ Still loading...');
     return <div>Loading...</div>;
   }
 
   if (!user) {
+    console.log('❌ No user, redirecting to login');
     return <Navigate to="/login" replace />;
   }
 
+  console.log('✅ User authenticated, rendering protected content');
   return <MainLayout>{children}</MainLayout>;
 }
 
