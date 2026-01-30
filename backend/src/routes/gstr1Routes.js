@@ -13,6 +13,7 @@ router.use(authenticateToken);
 
 // GSTR-1 operations
 router.post('/generate', gstr1Controller.generateGSTR1);
+router.get('/', gstr1Controller.getAllGSTR1); // List all GSTR-1 returns
 router.get('/:year/:month', gstr1Controller.getGSTR1);
 router.get('/:year/:month/export/json', gstr1Controller.exportGSTR1JSON);
 

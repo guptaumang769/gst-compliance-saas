@@ -50,6 +50,52 @@ async function generateGSTR1(req, res) {
 }
 
 /**
+ * Get all GSTR-1 returns for the business
+ * GET /api/gstr1
+ */
+async function getAllGSTR1(req, res) {
+  try {
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const gstr1Returns = await prisma.gSTR1.findMany({
+      where: { businessId: business.id },
+      orderBy: { generatedDate: 'desc' }
+    });
+
+    res.status(200).json({
+      success: true,
+      returns: gstr1Returns.map(r => ({
+        id: r.id,
+        returnType: 'GSTR1',
+        period: `${r.year}-${String(r.month).padStart(2, '0')}`,
+        month: r.month,
+        year: r.year,
+        generatedDate: r.generatedDate,
+        status: r.status || 'generated',
+        totalTaxLiability: r.returnData?.totalTaxLiability || 0,
+      }))
+    });
+  } catch (error) {
+    console.error('Get all GSTR-1 error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to retrieve GSTR-1 returns'
+    });
+  }
+}
+
+/**
  * Get GSTR-1 for a specific period
  * GET /api/gstr1/:year/:month
  */
@@ -126,6 +172,7 @@ async function exportGSTR1JSON(req, res) {
 
 module.exports = {
   generateGSTR1,
+  getAllGSTR1,
   getGSTR1,
   exportGSTR1JSON
 };
