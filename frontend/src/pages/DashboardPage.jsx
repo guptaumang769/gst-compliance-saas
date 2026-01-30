@@ -6,7 +6,6 @@ import {
   Card,
   CardContent,
   Typography,
-  Paper,
   Table,
   TableBody,
   TableCell,
@@ -43,42 +42,35 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
-import { dashboardAPI, invoiceAPI, customerAPI } from '../services/api';
+import { dashboardAPI, invoiceAPI } from '../services/api';
+import { formatCurrency, formatDate, calculateTrend } from '../utils/formatters';
+import { handleApiError } from '../utils/errorHandler';
+import { MESSAGES, INVOICE_STATUS_COLORS, STAT_COLORS } from '../utils/constants';
+import '../styles/dashboard.css';
 
 // Stat Card Component
 function StatCard({ title, value, change, icon, color, trend, loading }) {
   const isPositive = trend === 'up';
   
   return (
-    <Card
-      sx={{
-        position: 'relative',
-        overflow: 'visible',
-        '&:hover': {
-          transform: 'translateY(-4px)',
-          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-        },
-        transition: 'all 0.3s ease',
-      }}
-    >
+    <Card className="stat-card">
       <CardContent>
         {loading ? (
           <Box sx={{ py: 3 }}>
             <LinearProgress />
           </Box>
         ) : (
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <Box>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+          <Box className="stat-card-content">
+            <Box className="stat-card-info">
+              <Typography className="stat-card-title">
                 {title}
               </Typography>
-              <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
+              <Typography className="stat-card-value">
                 {value}
               </Typography>
               {change && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box className="stat-card-trend">
                   {isPositive ? (
                     <TrendingUp sx={{ fontSize: 16, color: 'success.main' }} />
                   ) : (
@@ -91,17 +83,16 @@ function StatCard({ title, value, change, icon, color, trend, loading }) {
                     {change}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    vs last month
+                    {MESSAGES.VS_LAST_MONTH}
                   </Typography>
                 </Box>
               )}
             </Box>
             <Avatar
+              className="stat-card-avatar"
               sx={{
                 background: `linear-gradient(135deg, ${color}40 0%, ${color}20 100%)`,
                 color: color,
-                width: 56,
-                height: 56,
               }}
             >
               {icon}
@@ -120,7 +111,6 @@ export default function DashboardPage() {
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [recentInvoices, setRecentInvoices] = useState([]);
-  const [topCustomers, setTopCustomers] = useState([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -131,60 +121,35 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
 
-      // Get current date for filtering
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
 
-      // Fetch all data in parallel
-      const [summaryRes, invoicesRes, customersRes] = await Promise.all([
+      const [summaryRes, invoicesRes] = await Promise.all([
         dashboardAPI.getSummary({ month: currentMonth, year: currentYear }),
         invoiceAPI.getAll({ limit: 5, sortBy: 'invoiceDate', order: 'desc' }),
-        dashboardAPI.getTopCustomers({ limit: 5 }),
       ]);
 
       setDashboardData(summaryRes.data);
       setRecentInvoices(invoicesRes.data.invoices || []);
-      setTopCustomers(customersRes.data.customers || []);
     } catch (err) {
-      console.error('Error fetching dashboard data:', err);
-      setError(err.response?.data?.message || 'Failed to load dashboard data');
+      const errorMessage = handleApiError(err, MESSAGES.ERROR_LOADING_DATA);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount || 0);
-  };
-
   const getStatusColor = (status) => {
-    const statusLower = status?.toLowerCase();
-    if (statusLower === 'paid') return 'success';
-    if (statusLower === 'pending') return 'warning';
-    if (statusLower === 'overdue') return 'error';
-    return 'default';
+    const statusUpper = status?.charAt(0).toUpperCase() + status?.slice(1).toLowerCase();
+    return INVOICE_STATUS_COLORS[statusUpper] || 'default';
   };
 
-  const calculateTrend = (current, previous) => {
-    if (!previous || previous === 0) return null;
-    const change = ((current - previous) / previous) * 100;
-    return {
-      value: `${change > 0 ? '+' : ''}${change.toFixed(1)}%`,
-      trend: change >= 0 ? 'up' : 'down',
-    };
-  };
-
-  // Prepare chart data from dashboard summary
   const getRevenueChartData = () => {
     if (!dashboardData?.monthlyData) return [];
     
     return dashboardData.monthlyData.map((item) => ({
-      month: format(new Date(item.year, item.month - 1), 'MMM'),
+      month: formatDate(new Date(item.year, item.month - 1), 'MMM'),
       revenue: item.totalRevenue || 0,
       tax: item.totalTax || 0,
     }));
@@ -208,8 +173,8 @@ export default function DashboardPage() {
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
-        <Button variant="contained" onClick={fetchDashboardData}>
-          Retry
+        <Button variant="contained" onClick={fetchDashboardData} className="gradient-button-primary">
+          {MESSAGES.BTN_RETRY}
         </Button>
       </Box>
     );
@@ -221,15 +186,17 @@ export default function DashboardPage() {
   const customerTrend = calculateTrend(summary.totalCustomers, summary.previousMonthCustomers);
   const taxTrend = calculateTrend(summary.totalTax, summary.previousMonthTax);
 
+  const displayName = user?.name || user?.email?.split('@')[0] || 'User';
+
   return (
     <Box>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
-          Welcome back, {user?.name || user?.email?.split('@')[0] || 'User'}! 👋
+          {MESSAGES.DASHBOARD_WELCOME}, {displayName}! 👋
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Here's what's happening with your business today.
+          {MESSAGES.DASHBOARD_SUBTITLE}
         </Typography>
       </Box>
 
@@ -237,45 +204,45 @@ export default function DashboardPage() {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Total Revenue"
+            title={MESSAGES.TOTAL_REVENUE}
             value={formatCurrency(summary.totalRevenue)}
             change={revenueTrend?.value}
             trend={revenueTrend?.trend}
             icon={<AccountBalance />}
-            color="#6366F1"
+            color={STAT_COLORS.REVENUE}
             loading={loading}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Total Invoices"
+            title={MESSAGES.TOTAL_INVOICES}
             value={summary.totalInvoices || 0}
             change={invoiceTrend?.value}
             trend={invoiceTrend?.trend}
             icon={<Receipt />}
-            color="#8B5CF6"
+            color={STAT_COLORS.INVOICES}
             loading={loading}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Total Customers"
+            title={MESSAGES.TOTAL_CUSTOMERS}
             value={summary.totalCustomers || 0}
             change={customerTrend?.value}
             trend={customerTrend?.trend}
             icon={<People />}
-            color="#10B981"
+            color={STAT_COLORS.CUSTOMERS}
             loading={loading}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="GST Tax Collected"
+            title={MESSAGES.GST_TAX_COLLECTED}
             value={formatCurrency(summary.totalTax)}
             change={taxTrend?.value}
             trend={taxTrend?.trend}
             icon={<ShoppingCart />}
-            color="#F59E0B"
+            color={STAT_COLORS.TAX}
             loading={loading}
           />
         </Grid>
@@ -285,15 +252,15 @@ export default function DashboardPage() {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {/* Revenue Chart */}
         <Grid item xs={12} lg={8}>
-          <Card>
+          <Card className="chart-card">
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Box className="chart-header">
                 <Box>
-                  <Typography variant="h6" fontWeight={600} gutterBottom>
-                    Revenue Overview
+                  <Typography className="chart-title">
+                    {MESSAGES.REVENUE_OVERVIEW}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Monthly revenue and tax collection
+                  <Typography className="chart-subtitle">
+                    {MESSAGES.REVENUE_OVERVIEW_SUBTITLE}
                   </Typography>
                 </Box>
                 <IconButton size="small">
@@ -301,7 +268,7 @@ export default function DashboardPage() {
                 </IconButton>
               </Box>
               {loading ? (
-                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box className="chart-container">
                   <LinearProgress sx={{ width: '50%' }} />
                 </Box>
               ) : getRevenueChartData().length > 0 ? (
@@ -348,9 +315,9 @@ export default function DashboardPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box className="chart-container">
                   <Typography color="text.secondary">
-                    No data available. Create your first invoice to see the chart!
+                    {MESSAGES.NO_DATA_AVAILABLE}
                   </Typography>
                 </Box>
               )}
@@ -362,14 +329,14 @@ export default function DashboardPage() {
         <Grid item xs={12} lg={4}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                GST Breakdown
+              <Typography className="chart-title">
+                {MESSAGES.GST_BREAKDOWN}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Current month tax collection
+              <Typography className="chart-subtitle" sx={{ mb: 3 }}>
+                {MESSAGES.GST_BREAKDOWN_SUBTITLE}
               </Typography>
               {loading ? (
-                <Box sx={{ height: 250, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box className="chart-container" sx={{ height: 250 }}>
                   <LinearProgress sx={{ width: '50%' }} />
                 </Box>
               ) : getGSTBreakdownData().some(item => item.amount > 0) ? (
@@ -390,9 +357,9 @@ export default function DashboardPage() {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <Box sx={{ height: 250, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box className="chart-container" sx={{ height: 250 }}>
                   <Typography color="text.secondary" align="center">
-                    No GST data available yet
+                    {MESSAGES.NO_GST_DATA}
                   </Typography>
                 </Box>
               )}
@@ -404,26 +371,22 @@ export default function DashboardPage() {
       {/* Recent Invoices */}
       <Card>
         <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box className="chart-header">
             <Box>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Recent Invoices
+              <Typography className="chart-title">
+                {MESSAGES.RECENT_INVOICES}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Latest invoices from your business
+              <Typography className="chart-subtitle">
+                {MESSAGES.RECENT_INVOICES_SUBTITLE}
               </Typography>
             </Box>
             <Button
               variant="contained"
               startIcon={<Add />}
               onClick={() => navigate('/invoices')}
-              sx={{
-                background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
-                textTransform: 'none',
-                fontWeight: 600,
-              }}
+              className="gradient-button-primary"
             >
-              New Invoice
+              {MESSAGES.BTN_NEW_INVOICE}
             </Button>
           </Box>
           {loading ? (
@@ -433,24 +396,19 @@ export default function DashboardPage() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Invoice Number</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Customer</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{MESSAGES.INVOICE_ID}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{MESSAGES.CUSTOMER}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{MESSAGES.AMOUNT}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{MESSAGES.STATUS}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{MESSAGES.DATE}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{MESSAGES.ACTIONS}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {recentInvoices.map((invoice) => (
                     <TableRow
                       key={invoice.id}
-                      sx={{
-                        '&:hover': {
-                          backgroundColor: '#F9FAFB',
-                          cursor: 'pointer',
-                        },
-                      }}
+                      className="invoice-table-row"
                       onClick={() => navigate(`/invoices/${invoice.id}`)}
                     >
                       <TableCell>
@@ -474,7 +432,7 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                          {invoice.invoiceDate ? format(new Date(invoice.invoiceDate), 'dd MMM yyyy') : 'N/A'}
+                          {formatDate(invoice.invoiceDate)}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -494,25 +452,21 @@ export default function DashboardPage() {
               </Table>
             </TableContainer>
           ) : (
-            <Box sx={{ py: 4, textAlign: 'center' }}>
-              <Receipt sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                No invoices yet
+            <Box className="empty-state">
+              <Receipt className="empty-state-icon" />
+              <Typography className="empty-state-title">
+                {MESSAGES.NO_INVOICES_YET}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Create your first invoice to start tracking revenue
+              <Typography className="empty-state-message">
+                {MESSAGES.NO_INVOICES_MESSAGE}
               </Typography>
               <Button
                 variant="contained"
                 startIcon={<Add />}
                 onClick={() => navigate('/invoices')}
-                sx={{
-                  background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
-                  textTransform: 'none',
-                  fontWeight: 600,
-                }}
+                className="gradient-button-primary"
               >
-                Create Invoice
+                {MESSAGES.BTN_CREATE_INVOICE}
               </Button>
             </Box>
           )}

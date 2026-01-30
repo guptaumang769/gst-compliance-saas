@@ -1,0 +1,117 @@
+/* Dashboard Styles */
+
+.stat-card {
+  position: relative;
+  overflow: visible;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.stat-card-info {
+  flex: 1;
+}
+
+.stat-card-title {
+  font-size: 0.875rem;
+  color: #6B7280;
+  margin-bottom: 8px;
+}
+
+.stat-card-value {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.stat-card-trend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-card-avatar {
+  width: 56px;
+  height: 56px;
+}
+
+.chart-card {
+  position: relative;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.chart-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.chart-subtitle {
+  font-size: 0.875rem;
+  color: #6B7280;
+}
+
+.chart-container {
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-state {
+  padding: 32px;
+  text-align: center;
+}
+
+.empty-state-icon {
+  font-size: 64px;
+  color: rgba(0, 0, 0, 0.26);
+  margin-bottom: 16px;
+}
+
+.empty-state-title {
+  font-size: 1.25rem;
+  color: #6B7280;
+  margin-bottom: 8px;
+}
+
+.empty-state-message {
+  font-size: 0.875rem;
+  color: #6B7280;
+  margin-bottom: 24px;
+}
+
+.invoice-table-row {
+  transition: background-color 0.2s ease;
+}
+
+.invoice-table-row:hover {
+  background-color: #F9FAFB;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .stat-card-value {
+    font-size: 1.5rem;
+  }
+  
+  .stat-card-avatar {
+    width: 48px;
+    height: 48px;
+  }
+}
