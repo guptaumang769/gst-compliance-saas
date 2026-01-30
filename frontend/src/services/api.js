@@ -111,6 +111,35 @@ export const gstr3bAPI = {
   exportJSON: (id) => api.get(`/gstr3b/${id}/export`, { responseType: 'blob' }),
 };
 
+// Unified GSTR API (combines GSTR-1 and GSTR-3B)
+export const gstrAPI = {
+  generate: (data) => {
+    const endpoint = data.returnType === 'GSTR1' ? '/gstr1/generate' : '/gstr3b/generate';
+    return api.post(endpoint, data);
+  },
+  getAll: (params) => {
+    // Get both GSTR-1 and GSTR-3B returns
+    return Promise.all([
+      api.get('/gstr1', { params }),
+      api.get('/gstr3b', { params })
+    ]).then(([gstr1Response, gstr3bResponse]) => {
+      const gstr1Returns = (gstr1Response.data.returns || []).map(r => ({ ...r, returnType: 'GSTR1' }));
+      const gstr3bReturns = (gstr3bResponse.data.returns || []).map(r => ({ ...r, returnType: 'GSTR3B' }));
+      return {
+        data: {
+          returns: [...gstr1Returns, ...gstr3bReturns].sort((a, b) => 
+            new Date(b.generatedDate) - new Date(a.generatedDate)
+          ),
+        }
+      };
+    });
+  },
+  download: (id) => {
+    // Download return JSON
+    return api.get(`/gstr1/${id}`, {}).catch(() => api.get(`/gstr3b/${id}`, {}));
+  },
+};
+
 // Payment API
 export const paymentAPI = {
   createOrder: (data) => api.post('/payments/create-order', data),
