@@ -50,6 +50,52 @@ async function generateGSTR3B(req, res) {
 }
 
 /**
+ * Get all GSTR-3B returns for the business
+ * GET /api/gstr3b
+ */
+async function getAllGSTR3B(req, res) {
+  try {
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const gstr3bReturns = await prisma.gSTR3B.findMany({
+      where: { businessId: business.id },
+      orderBy: { generatedDate: 'desc' }
+    });
+
+    res.status(200).json({
+      success: true,
+      returns: gstr3bReturns.map(r => ({
+        id: r.id,
+        returnType: 'GSTR3B',
+        period: `${r.year}-${String(r.month).padStart(2, '0')}`,
+        month: r.month,
+        year: r.year,
+        generatedDate: r.generatedDate,
+        status: r.status || 'generated',
+        totalTaxLiability: r.returnData?.taxPayable?.totalTaxPayable || 0,
+      }))
+    });
+  } catch (error) {
+    console.error('Get all GSTR-3B error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to retrieve GSTR-3B returns'
+    });
+  }
+}
+
+/**
  * Get GSTR-3B for a specific period
  * GET /api/gstr3b/:year/:month
  */
@@ -126,6 +172,7 @@ async function exportGSTR3BJSON(req, res) {
 
 module.exports = {
   generateGSTR3B,
+  getAllGSTR3B,
   getGSTR3B,
   exportGSTR3BJSON
 };

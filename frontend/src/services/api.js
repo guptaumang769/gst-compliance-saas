@@ -117,14 +117,14 @@ export const gstrAPI = {
     const endpoint = data.returnType === 'GSTR1' ? '/gstr1/generate' : '/gstr3b/generate';
     return api.post(endpoint, data);
   },
-  getAll: (params) => {
+  getAll: () => {
     // Get both GSTR-1 and GSTR-3B returns
     return Promise.all([
-      api.get('/gstr1', { params }),
-      api.get('/gstr3b', { params })
+      api.get('/gstr1'),
+      api.get('/gstr3b')
     ]).then(([gstr1Response, gstr3bResponse]) => {
-      const gstr1Returns = (gstr1Response.data.returns || []).map(r => ({ ...r, returnType: 'GSTR1' }));
-      const gstr3bReturns = (gstr3bResponse.data.returns || []).map(r => ({ ...r, returnType: 'GSTR3B' }));
+      const gstr1Returns = gstr1Response.data.returns || [];
+      const gstr3bReturns = gstr3bResponse.data.returns || [];
       return {
         data: {
           returns: [...gstr1Returns, ...gstr3bReturns].sort((a, b) => 
@@ -134,9 +134,15 @@ export const gstrAPI = {
       };
     });
   },
-  download: (id) => {
-    // Download return JSON
-    return api.get(`/gstr1/${id}`, {}).catch(() => api.get(`/gstr3b/${id}`, {}));
+  getByPeriod: (returnType, year, month) => {
+    const endpoint = returnType === 'GSTR1' ? `/gstr1/${year}/${month}` : `/gstr3b/${year}/${month}`;
+    return api.get(endpoint);
+  },
+  download: (returnType, year, month) => {
+    const endpoint = returnType === 'GSTR1' 
+      ? `/gstr1/${year}/${month}/export/json` 
+      : `/gstr3b/${year}/${month}/export/json`;
+    return api.get(endpoint, { responseType: 'blob' });
   },
 };
 
