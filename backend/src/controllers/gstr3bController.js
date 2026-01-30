@@ -68,9 +68,13 @@ async function getAllGSTR3B(req, res) {
       });
     }
 
-    const gstr3bReturns = await prisma.gSTR3B.findMany({
-      where: { businessId: business.id },
-      orderBy: { generatedDate: 'desc' }
+    const gstr3bReturns = await prisma.gSTReturn.findMany({
+      where: { 
+        businessId: business.id,
+        returnType: 'gstr3b',
+        deletedAt: null
+      },
+      orderBy: { generatedAt: 'desc' }
     });
 
     res.status(200).json({
@@ -78,12 +82,10 @@ async function getAllGSTR3B(req, res) {
       returns: gstr3bReturns.map(r => ({
         id: r.id,
         returnType: 'GSTR3B',
-        period: `${r.year}-${String(r.month).padStart(2, '0')}`,
-        month: r.month,
-        year: r.year,
-        generatedDate: r.generatedDate,
+        period: r.filingPeriod,
+        generatedDate: r.generatedAt || r.createdAt,
         status: r.status || 'generated',
-        totalTaxLiability: r.returnData?.taxPayable?.totalTaxPayable || 0,
+        totalTaxLiability: parseFloat(r.totalTaxLiability || 0),
       }))
     });
   } catch (error) {
