@@ -23,8 +23,13 @@ const testUser = {
   gstin: '27AAPFU0939F1ZV', // Valid Maharashtra GSTIN
   pan: 'AAPFU0939F',
   state: 'Maharashtra',
-  address: '123 Test Street, Mumbai',
-  phone: '9876543210'
+  addressLine1: '123 Test Street',
+  addressLine2: 'Andheri West',
+  city: 'Mumbai',
+  pincode: '400058',
+  businessType: 'Private Limited',
+  phone: '9876543210',
+  businessEmail: 'business@testcompany.com'
 };
 
 /**
