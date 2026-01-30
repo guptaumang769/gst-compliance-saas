@@ -12,7 +12,11 @@ const { authenticateToken } = require('../middleware/authMiddleware');
 router.use(authenticateToken);
 
 // Dashboard endpoints
+router.get('/summary', dashboardController.getDashboardOverview); // Alias for /overview
 router.get('/overview', dashboardController.getDashboardOverview);
+router.get('/tax-liability', dashboardController.getDashboardOverview); // Alias
+router.get('/itc-summary', dashboardController.getDashboardOverview); // Alias
+router.get('/net-tax-payable', dashboardController.getDashboardOverview); // Alias
 router.get('/top-customers', dashboardController.getTopCustomers);
 router.get('/top-suppliers', dashboardController.getTopSuppliers);
 router.get('/revenue-trend', dashboardController.getRevenueTrend);
