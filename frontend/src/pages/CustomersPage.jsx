@@ -34,7 +34,10 @@ import {
   FileDownload,
   Person,
   Business,
+  InfoOutlined,
 } from '@mui/icons-material';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { customerAPI } from '../services/api';
@@ -42,12 +45,20 @@ import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import { MESSAGES, INDIAN_STATES, VALIDATION_MESSAGES } from '../utils/constants';
 import { formatDate } from '../utils/formatters';
 
-// Validation schema
+// Validation schema - Dynamic based on customer type
 const customerSchema = Yup.object({
   customerName: Yup.string().required(VALIDATION_MESSAGES.BUSINESS_NAME_REQUIRED),
+  customerType: Yup.string().required('Customer type is required').oneOf(['b2b', 'b2c'], 'Invalid customer type'),
   gstin: Yup.string()
-    .matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, VALIDATION_MESSAGES.GSTIN_INVALID)
-    .nullable(),
+    .when('customerType', {
+      is: 'b2b',
+      then: (schema) => schema
+        .required('GSTIN is required for B2B customers')
+        .matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, VALIDATION_MESSAGES.GSTIN_INVALID),
+      otherwise: (schema) => schema
+        .nullable()
+        .matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, VALIDATION_MESSAGES.GSTIN_INVALID),
+    }),
   pan: Yup.string()
     .matches(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, VALIDATION_MESSAGES.PAN_INVALID)
     .nullable(),
@@ -75,6 +86,7 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [deletingCustomer, setDeletingCustomer] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [sameAsBilling, setSameAsBilling] = useState(true);
 
   useEffect(() => {
     fetchCustomers();
@@ -92,8 +104,9 @@ export default function CustomersPage() {
       };
 
       const response = await customerAPI.getAll(params);
+      // Backend returns { customers, pagination: { total } }
       setCustomers(response.data.customers || []);
-      setTotalCount(response.data.total || 0);
+      setTotalCount(response.data.pagination?.total || 0);
     } catch (err) {
       const errorMessage = handleApiError(err, 'Failed to load customers');
       setError(errorMessage);
@@ -105,6 +118,7 @@ export default function CustomersPage() {
   const formik = useFormik({
     initialValues: {
       customerName: '',
+      customerType: 'b2b',
       gstin: '',
       pan: '',
       billingAddress: '',
@@ -121,12 +135,13 @@ export default function CustomersPage() {
       try {
         const customerData = {
           ...values,
-          gstin: values.gstin || null,
+          // For B2C customers, remove GSTIN and PAN if empty
+          gstin: values.customerType === 'b2b' ? values.gstin : (values.gstin || null),
           pan: values.pan || null,
           email: values.email || null,
           phone: values.phone || null,
           contactPerson: values.contactPerson || null,
-          shippingAddress: values.shippingAddress || values.billingAddress,
+          shippingAddress: sameAsBilling ? values.billingAddress : (values.shippingAddress || values.billingAddress),
         };
 
         if (editingCustomer) {
@@ -151,8 +166,11 @@ export default function CustomersPage() {
   const handleOpenDialog = (customer = null) => {
     if (customer) {
       setEditingCustomer(customer);
+      const hasShipping = customer.shippingAddress && customer.shippingAddress !== customer.billingAddress;
+      setSameAsBilling(!hasShipping);
       formik.setValues({
         customerName: customer.customerName || '',
+        customerType: customer.customerType || 'b2b',
         gstin: customer.gstin || '',
         pan: customer.pan || '',
         billingAddress: customer.billingAddress || '',
@@ -166,6 +184,7 @@ export default function CustomersPage() {
       });
     } else {
       setEditingCustomer(null);
+      setSameAsBilling(true);
       formik.resetForm();
     }
     setOpenDialog(true);
@@ -174,6 +193,7 @@ export default function CustomersPage() {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingCustomer(null);
+    setSameAsBilling(true);
     formik.resetForm();
   };
 
@@ -411,6 +431,53 @@ export default function CustomersPage() {
         <form onSubmit={formik.handleSubmit}>
           <DialogContent dividers>
             <Grid container spacing={2}>
+              {/* Customer Type Selection */}
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  select
+                  id="customerType"
+                  name="customerType"
+                  label="Customer Type *"
+                  value={formik.values.customerType}
+                  onChange={(e) => {
+                    formik.handleChange(e);
+                    // Clear GSTIN if switching to B2C
+                    if (e.target.value === 'b2c') {
+                      formik.setFieldValue('gstin', '');
+                      formik.setFieldValue('pan', '');
+                    }
+                  }}
+                  onBlur={formik.handleBlur}
+                  error={formik.touched.customerType && Boolean(formik.errors.customerType)}
+                  helperText={formik.touched.customerType && formik.errors.customerType}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: 'white',
+                    },
+                  }}
+                >
+                  <MenuItem value="b2b">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Business fontSize="small" />
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>B2B (Business to Business)</Typography>
+                        <Typography variant="caption" color="text.secondary">Registered business with GSTIN</Typography>
+                      </Box>
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="b2c">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Person fontSize="small" />
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>B2C (Business to Consumer)</Typography>
+                        <Typography variant="caption" color="text.secondary">Individual customer without GSTIN</Typography>
+                      </Box>
+                    </Box>
+                  </MenuItem>
+                </TextField>
+              </Grid>
+
               <Grid item xs={12}>
                 <TextField
                   fullWidth
@@ -430,13 +497,19 @@ export default function CustomersPage() {
                   fullWidth
                   id="gstin"
                   name="gstin"
-                  label="GSTIN (Optional)"
+                  label={formik.values.customerType === 'b2b' ? 'GSTIN *' : 'GSTIN (Optional)'}
                   value={formik.values.gstin}
                   onChange={formik.handleChange}
                   onBlur={formik.handleBlur}
                   error={formik.touched.gstin && Boolean(formik.errors.gstin)}
                   helperText={formik.touched.gstin && formik.errors.gstin}
                   placeholder="27AABCT1332L1ZM"
+                  disabled={formik.values.customerType === 'b2c'}
+                  sx={{
+                    '& .Mui-disabled': {
+                      backgroundColor: '#f5f5f5',
+                    },
+                  }}
                 />
               </Grid>
 
@@ -471,18 +544,46 @@ export default function CustomersPage() {
                 />
               </Grid>
 
+              {/* Shipping Address Section */}
               <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  id="shippingAddress"
-                  name="shippingAddress"
-                  label="Shipping Address (Optional, defaults to billing)"
-                  multiline
-                  rows={2}
-                  value={formik.values.shippingAddress}
-                  onChange={formik.handleChange}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Shipping Address
+                  </Typography>
+                  <InfoOutlined sx={{ fontSize: 16, color: 'text.secondary' }} />
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={sameAsBilling}
+                      onChange={(e) => {
+                        setSameAsBilling(e.target.checked);
+                        if (e.target.checked) {
+                          formik.setFieldValue('shippingAddress', formik.values.billingAddress);
+                        }
+                      }}
+                      color="primary"
+                    />
+                  }
+                  label="Same as billing address"
                 />
               </Grid>
+
+              {!sameAsBilling && (
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    id="shippingAddress"
+                    name="shippingAddress"
+                    label="Shipping Address"
+                    multiline
+                    rows={2}
+                    value={formik.values.shippingAddress}
+                    onChange={formik.handleChange}
+                    placeholder="Enter different shipping address"
+                  />
+                </Grid>
+              )}
 
               <Grid item xs={12} sm={6}>
                 <TextField

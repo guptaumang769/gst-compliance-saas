@@ -27,11 +27,13 @@ async function createCustomer(businessId, customerData) {
     gstin,
     pan,
     billingAddress,
+    shippingAddress,
     city,
     state,
     pincode,
     email,
     phone,
+    contactPerson,
     customerType = 'b2b'
   } = customerData;
   
@@ -91,12 +93,14 @@ async function createCustomer(businessId, customerData) {
         gstin: gstin || null,
         pan: pan || null,
         billingAddress,
+        shippingAddress: shippingAddress || billingAddress, // Default to billing address
         city,
         state,
         stateCode,
         pincode,
         email: email || null,
         phone: phone || null,
+        contactPerson: contactPerson || null,
         customerType,
         isActive: true
       }

@@ -113,10 +113,12 @@ model Customer {
   gstin            String?   // Optional for B2C customers
   pan              String?
   billingAddress   String    @map("billing_address")
+  shippingAddress  String?   @map("shipping_address") // Optional, defaults to billing address
   city             String
   state            String
   stateCode        String?   @map("state_code") // Extracted from GSTIN if available
   pincode          String
+  contactPerson    String?   @map("contact_person") // Optional contact person name
   
   // Contact
   email            String?
