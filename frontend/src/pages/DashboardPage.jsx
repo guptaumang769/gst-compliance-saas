@@ -189,11 +189,27 @@ export default function DashboardPage() {
     );
   }
 
-  const summary = dashboardData?.summary || {};
-  const revenueTrend = calculateTrend(summary.totalRevenue, summary.previousMonthRevenue);
-  const invoiceTrend = calculateTrend(summary.totalInvoices, summary.previousMonthInvoices);
-  const customerTrend = calculateTrend(summary.totalCustomers, summary.previousMonthCustomers);
-  const taxTrend = calculateTrend(summary.totalTax, summary.previousMonthTax);
+  // Backend returns data in { data: { sales, purchases, counts, tax } } format
+  const data = dashboardData?.data || {};
+  const sales = data.sales || {};
+  const counts = data.counts || {};
+  const tax = data.tax || {};
+  
+  // Create summary object for easier access
+  const summary = {
+    totalRevenue: sales.totalRevenue || 0,
+    totalInvoices: sales.invoiceCount || 0,
+    totalCustomers: counts.totalCustomers || 0,
+    totalTax: sales.totalTax || 0,
+    totalCGST: sales.cgst || 0,
+    totalSGST: sales.sgst || 0,
+    totalIGST: sales.igst || 0,
+  };
+  
+  const revenueTrend = calculateTrend(summary.totalRevenue, summary.previousMonthRevenue || 0);
+  const invoiceTrend = calculateTrend(summary.totalInvoices, summary.previousMonthInvoices || 0);
+  const customerTrend = calculateTrend(summary.totalCustomers, summary.previousMonthCustomers || 0);
+  const taxTrend = calculateTrend(summary.totalTax, summary.previousMonthTax || 0);
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
 
