@@ -167,7 +167,7 @@ async function login(email, password) {
     });
     
     if (!user) {
-      throw new Error('Invalid email or password');
+      throw new Error('Email not registered. Please sign up first.');
     }
     
     // 2. Check if user is active
@@ -179,7 +179,7 @@ async function login(email, password) {
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     
     if (!isPasswordValid) {
-      throw new Error('Invalid email or password');
+      throw new Error('Invalid password. Please try again.');
     }
     
     // 4. Update last login timestamp

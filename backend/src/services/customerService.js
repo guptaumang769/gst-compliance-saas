@@ -79,6 +79,21 @@ async function createCustomer(businessId, customerData) {
       }
     }
     
+    // ✅ Check for duplicate phone number if provided
+    if (phone) {
+      const existingPhone = await prisma.customer.findFirst({
+        where: {
+          businessId,
+          phone,
+          isActive: true
+        }
+      });
+      
+      if (existingPhone) {
+        throw new Error('A customer with this phone number already exists');
+      }
+    }
+    
     // Export customers don't need GSTIN
     if (customerType === 'export') {
       // For export, state can be "Export" or specific country
@@ -267,6 +282,22 @@ async function updateCustomer(customerId, businessId, updateData) {
       
       // Update state code if GSTIN changed
       updateData.stateCode = extractStateCode(updateData.gstin);
+    }
+    
+    // If updating phone, check for duplicates
+    if (updateData.phone && updateData.phone !== existingCustomer.phone) {
+      const duplicatePhone = await prisma.customer.findFirst({
+        where: {
+          businessId,
+          phone: updateData.phone,
+          id: { not: customerId },
+          isActive: true
+        }
+      });
+      
+      if (duplicatePhone) {
+        throw new Error('Another customer with this phone number already exists');
+      }
     }
     
     // Update customer

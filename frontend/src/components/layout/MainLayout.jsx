@@ -28,6 +28,7 @@ import {
   Logout,
   AccountCircle,
   Menu as MenuIcon,
+  LocalShipping,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 
@@ -35,6 +36,7 @@ const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: <Dashboard /> },
   { label: 'Invoices', path: '/invoices', icon: <Receipt /> },
   { label: 'Customers', path: '/customers', icon: <People /> },
+  { label: 'Suppliers', path: '/suppliers', icon: <LocalShipping /> },
   { label: 'Purchases', path: '/purchases', icon: <ShoppingCart /> },
   { label: 'GST Returns', path: '/gst-returns', icon: <Assessment /> },
 ];
