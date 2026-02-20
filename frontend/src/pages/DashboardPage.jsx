@@ -444,13 +444,13 @@ export default function DashboardPage() {
                       <TableCell>{invoice.customer?.customerName || 'N/A'}</TableCell>
                       <TableCell>
                         <Typography variant="body2" fontWeight={600}>
-                          {formatCurrency(invoice.grandTotal)}
+                          {formatCurrency(invoice.totalAmount || invoice.grandTotal)}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={invoice.status || 'Pending'}
-                          color={getStatusColor(invoice.status)}
+                          label={invoice.filedInGstr1 ? 'Filed' : (invoice.status || 'Draft')}
+                          color={getStatusColor(invoice.filedInGstr1 ? 'Filed' : (invoice.status || 'Draft'))}
                           size="small"
                           sx={{ fontWeight: 600 }}
                         />

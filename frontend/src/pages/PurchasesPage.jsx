@@ -86,8 +86,9 @@ export default function PurchasesPage() {
       };
 
       const response = await purchaseAPI.getAll(params);
+      // Backend returns { purchases: [...], pagination: { total } }
       setPurchases(response.data.purchases || []);
-      setTotalCount(response.data.total || 0);
+      setTotalCount(response.data.pagination?.total || 0);
     } catch (err) {
       const errorMessage = handleApiError(err, 'Failed to load purchases');
       setError(errorMessage);
@@ -131,6 +132,7 @@ export default function PurchasesPage() {
           ...values,
           items: values.items.map(item => ({
             ...item,
+            itemName: item.description, // Backend expects itemName
             discount: parseFloat(item.discount) || 0,
             cessRate: parseFloat(item.cessRate) || 0,
           })),
@@ -165,15 +167,15 @@ export default function PurchasesPage() {
         supplierInvoiceDate: purchase.supplierInvoiceDate?.split('T')[0] || new Date().toISOString().split('T')[0],
         dueDate: purchase.dueDate?.split('T')[0] || '',
         notes: purchase.notes || '',
-        items: purchase.PurchaseItem?.map(item => ({
-          description: item.description || '',
+        items: (purchase.items || purchase.PurchaseItem || []).map(item => ({
+          description: item.itemName || item.description || '',
           hsnCode: item.hsnCode || '',
           quantity: item.quantity || 1,
           unitPrice: item.unitPrice || 0,
           gstRate: item.gstRate || 18,
           cessRate: item.cessRate || 0,
-          discount: item.discount || 0,
-        })) || [],
+          discount: item.discountPercent || item.discount || 0,
+        })),
       });
     } else {
       setEditingPurchase(null);
@@ -348,7 +350,7 @@ export default function PurchasesPage() {
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2">
-                            {purchase.Supplier?.supplierName || 'N/A'}
+                            {purchase.supplier?.supplierName || purchase.Supplier?.supplierName || 'N/A'}
                           </Typography>
                         </TableCell>
                         <TableCell>{formatDate(purchase.supplierInvoiceDate)}</TableCell>

@@ -25,6 +25,8 @@ import {
   Typography,
   Alert,
 } from '@mui/material';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import {
   Add,
   Search,
@@ -33,6 +35,7 @@ import {
   FileDownload,
   Business,
   Store,
+  InfoOutlined,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -73,6 +76,7 @@ export default function SuppliersPage() {
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [deletingSupplier, setDeletingSupplier] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [sameAsBilling, setSameAsBilling] = useState(true);
 
   useEffect(() => {
     fetchSuppliers();
@@ -90,8 +94,9 @@ export default function SuppliersPage() {
       };
 
       const response = await supplierAPI.getAll(params);
+      // Backend returns { suppliers: [...], pagination: { total, page, limit, totalPages } }
       setSuppliers(response.data.suppliers || []);
-      setTotalCount(response.data.total || 0);
+      setTotalCount(response.data.pagination?.total || 0);
     } catch (err) {
       const errorMessage = handleApiError(err, 'Failed to load suppliers');
       setError(errorMessage);
@@ -124,7 +129,7 @@ export default function SuppliersPage() {
           email: values.email || null,
           phone: values.phone || null,
           contactPerson: values.contactPerson || null,
-          shippingAddress: values.shippingAddress || values.billingAddress,
+          shippingAddress: sameAsBilling ? values.billingAddress : (values.shippingAddress || values.billingAddress),
         };
 
         if (editingSupplier) {
@@ -149,6 +154,8 @@ export default function SuppliersPage() {
   const handleOpenDialog = (supplier = null) => {
     if (supplier) {
       setEditingSupplier(supplier);
+      const hasShipping = supplier.shippingAddress && supplier.shippingAddress !== supplier.billingAddress;
+      setSameAsBilling(!hasShipping);
       formik.setValues({
         supplierName: supplier.supplierName || '',
         gstin: supplier.gstin || '',
@@ -164,6 +171,7 @@ export default function SuppliersPage() {
       });
     } else {
       setEditingSupplier(null);
+      setSameAsBilling(true);
       formik.resetForm();
     }
     setOpenDialog(true);
@@ -172,6 +180,7 @@ export default function SuppliersPage() {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingSupplier(null);
+    setSameAsBilling(true);
     formik.resetForm();
   };
 
@@ -432,18 +441,46 @@ export default function SuppliersPage() {
                 />
               </Grid>
 
+              {/* Shipping Address Section */}
               <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  id="shippingAddress"
-                  name="shippingAddress"
-                  label="Shipping Address (Optional, defaults to billing)"
-                  multiline
-                  rows={2}
-                  value={formik.values.shippingAddress}
-                  onChange={formik.handleChange}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Shipping Address
+                  </Typography>
+                  <InfoOutlined sx={{ fontSize: 16, color: 'text.secondary' }} />
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={sameAsBilling}
+                      onChange={(e) => {
+                        setSameAsBilling(e.target.checked);
+                        if (e.target.checked) {
+                          formik.setFieldValue('shippingAddress', formik.values.billingAddress);
+                        }
+                      }}
+                      color="primary"
+                    />
+                  }
+                  label="Same as billing address"
                 />
               </Grid>
+
+              {!sameAsBilling && (
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    id="shippingAddress"
+                    name="shippingAddress"
+                    label="Shipping Address"
+                    multiline
+                    rows={2}
+                    value={formik.values.shippingAddress}
+                    onChange={formik.handleChange}
+                    placeholder="Enter different shipping address"
+                  />
+                </Grid>
+              )}
 
               <Grid item xs={12} sm={6}>
                 <TextField

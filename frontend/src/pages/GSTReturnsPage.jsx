@@ -85,15 +85,22 @@ export default function GSTReturnsPage() {
     }
   };
 
-  const handleDownloadJSON = async (returnId) => {
+  const handleDownloadJSON = async (returnItem) => {
     try {
-      const response = await gstrAPI.download(returnId);
+      // period is "YYYY-MM" format
+      const [year, month] = (returnItem.period || '').split('-');
+      if (!year || !month) {
+        handleApiError(null, 'Invalid period format for download');
+        return;
+      }
+      const response = await gstrAPI.download(returnItem.returnType, year, month);
       const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${response.data.returnType}-${response.data.period}.json`;
+      a.download = `${returnItem.returnType}_${year}${month}.json`;
       a.click();
+      window.URL.revokeObjectURL(url);
       handleSuccess('Return downloaded successfully');
     } catch (err) {
       handleApiError(err, 'Failed to download return');
@@ -303,7 +310,7 @@ export default function GSTReturnsPage() {
                         <Button
                           size="small"
                           startIcon={<FileDownload />}
-                          onClick={() => handleDownloadJSON(returnItem.id)}
+                          onClick={() => handleDownloadJSON(returnItem)}
                         >
                           Download JSON
                         </Button>

@@ -12,8 +12,7 @@
  * - Net Tax Payable = Output Tax (Sales) - ITC (Purchases)
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/database');
 const gstCalculator = require('./gstCalculator');
 const { validateGSTIN } = require('../utils/gstValidation');
 
@@ -104,21 +103,21 @@ async function createPurchase(purchaseData) {
     const buyerStateCode = business.stateCode;
     const supplierStateCode = supplier.stateCode;
     
-    if (!supplierStateCode) {
-      throw new Error(`Supplier "${supplier.supplierName}" does not have a state code. Ensure supplier has a valid GSTIN.`);
-    }
+    // For unregistered suppliers without GSTIN, fall back to supplier's state
+    // or buyer's state code for GST calculation (treated as intra-state)
+    const effectiveSupplierStateCode = supplierStateCode || buyerStateCode;
     
     if (!buyerStateCode) {
       throw new Error('Business does not have a state code. Ensure business has a valid GSTIN.');
     }
 
-    const transactionType = gstCalculator.getTransactionType(supplierStateCode, buyerStateCode);
+    const transactionType = gstCalculator.getTransactionType(effectiveSupplierStateCode, buyerStateCode);
 
     // Calculate GST for this item
     const gstResult = gstCalculator.calculateItemGST({
       taxableAmount,
       gstRate: parseFloat(gstRate),
-      sellerStateCode: supplierStateCode,
+      sellerStateCode: effectiveSupplierStateCode,
       buyerStateCode,
       invoiceType: 'b2b',
       cessRate: parseFloat(cessRate) || 0
@@ -184,7 +183,7 @@ async function createPurchase(purchaseData) {
         totalTaxAmount,
         totalAmount,
         supplierState: supplier.state,
-        supplierStateCode: supplier.stateCode || '',
+        supplierStateCode: supplier.stateCode || business.stateCode || '',
         buyerState: business.state,
         buyerStateCode: business.stateCode,
         isItcEligible,

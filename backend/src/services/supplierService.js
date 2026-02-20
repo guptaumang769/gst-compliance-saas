@@ -6,8 +6,7 @@
  * Similar to customers, but for purchase transactions.
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/database');
 const { validateGSTIN } = require('../utils/gstValidation');
 
 /**
@@ -22,11 +21,13 @@ async function createSupplier(supplierData) {
     gstin,
     pan,
     billingAddress,
+    shippingAddress,
     city,
     state,
     pincode,
     email,
     phone,
+    contactPerson,
     supplierType = 'registered' // registered, unregistered, composition
   } = supplierData;
 
@@ -62,7 +63,7 @@ async function createSupplier(supplierData) {
       throw new Error(`Supplier with GSTIN ${gstin} already exists`);
     }
   }
-
+  
   // Create supplier
   const supplier = await prisma.supplier.create({
     data: {
@@ -71,12 +72,14 @@ async function createSupplier(supplierData) {
       gstin: gstin || null,
       pan: pan || null,
       billingAddress,
+      shippingAddress: shippingAddress || billingAddress,
       city,
       state,
       stateCode,
       pincode,
       email: email || null,
       phone: phone || null,
+      contactPerson: contactPerson || null,
       supplierType
     }
   });
@@ -175,11 +178,13 @@ async function updateSupplier(supplierId, businessId, updateData) {
     gstin,
     pan,
     billingAddress,
+    shippingAddress,
     city,
     state,
     pincode,
     email,
     phone,
+    contactPerson,
     supplierType
   } = updateData;
 
@@ -214,12 +219,14 @@ async function updateSupplier(supplierId, businessId, updateData) {
       gstin: gstin !== undefined ? gstin : supplier.gstin,
       pan: pan !== undefined ? pan : supplier.pan,
       billingAddress: billingAddress || supplier.billingAddress,
+      shippingAddress: shippingAddress !== undefined ? shippingAddress : supplier.shippingAddress,
       city: city || supplier.city,
       state: state || supplier.state,
       stateCode: stateCode,
       pincode: pincode || supplier.pincode,
       email: email !== undefined ? email : supplier.email,
       phone: phone !== undefined ? phone : supplier.phone,
+      contactPerson: contactPerson !== undefined ? contactPerson : supplier.contactPerson,
       supplierType: supplierType || supplier.supplierType
     }
   });
