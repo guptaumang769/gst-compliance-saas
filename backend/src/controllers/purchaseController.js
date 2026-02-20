@@ -84,7 +84,7 @@ async function getPurchases(req, res) {
     res.status(200).json({
       success: true,
       message: 'Purchases retrieved successfully',
-      data: result.purchases,
+      purchases: result.purchases,
       pagination: result.pagination
     });
   } catch (error) {

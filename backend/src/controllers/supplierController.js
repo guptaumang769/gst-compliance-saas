@@ -80,7 +80,7 @@ async function getSuppliers(req, res) {
     res.status(200).json({
       success: true,
       message: 'Suppliers retrieved successfully',
-      data: result.suppliers,
+      suppliers: result.suppliers,
       pagination: result.pagination
     });
   } catch (error) {

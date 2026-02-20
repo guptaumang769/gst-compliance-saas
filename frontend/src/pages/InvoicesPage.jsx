@@ -68,6 +68,15 @@ const invoiceSchema = Yup.object({
   items: Yup.array().of(lineItemSchema).min(1, 'At least one item is required'),
 });
 
+// Compute invoice status from available fields
+const getInvoiceStatus = (invoice) => {
+  if (invoice.status) return invoice.status;
+  if (invoice.filedInGstr1) return 'Filed';
+  if (invoice.emailSent) return 'Sent';
+  if (invoice.pdfGenerated) return 'Generated';
+  return 'Draft';
+};
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -102,8 +111,9 @@ export default function InvoicesPage() {
       };
 
       const response = await invoiceAPI.getAll(params);
+      // Backend returns { invoices: [...], pagination: { total } }
       setInvoices(response.data.invoices || []);
-      setTotalCount(response.data.total || 0);
+      setTotalCount(response.data.pagination?.total || 0);
     } catch (err) {
       const errorMessage = handleApiError(err, 'Failed to load invoices');
       setError(errorMessage);
@@ -146,6 +156,7 @@ export default function InvoicesPage() {
           ...values,
           items: values.items.map(item => ({
             ...item,
+            itemName: item.description, // Backend expects itemName
             discount: parseFloat(item.discount) || 0,
             cessRate: parseFloat(item.cessRate) || 0,
           })),
@@ -179,15 +190,15 @@ export default function InvoicesPage() {
         invoiceDate: invoice.invoiceDate?.split('T')[0] || new Date().toISOString().split('T')[0],
         dueDate: invoice.dueDate?.split('T')[0] || '',
         notes: invoice.notes || '',
-        items: invoice.InvoiceItem?.map(item => ({
-          description: item.description || '',
+        items: (invoice.items || invoice.InvoiceItem || []).map(item => ({
+          description: item.itemName || item.description || '',
           hsnCode: item.hsnCode || '',
           quantity: item.quantity || 1,
           unitPrice: item.unitPrice || 0,
           gstRate: item.gstRate || 18,
           cessRate: item.cessRate || 0,
-          discount: item.discount || 0,
-        })) || [],
+          discount: item.discountPercent || item.discount || 0,
+        })),
       });
     } else {
       setEditingInvoice(null);
@@ -392,7 +403,7 @@ export default function InvoicesPage() {
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2">
-                            {invoice.Customer?.customerName || 'N/A'}
+                            {invoice.customer?.customerName || invoice.Customer?.customerName || 'N/A'}
                           </Typography>
                         </TableCell>
                         <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
@@ -403,9 +414,9 @@ export default function InvoicesPage() {
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={invoice.status}
+                            label={getInvoiceStatus(invoice)}
                             size="small"
-                            color={getStatusColor(invoice.status)}
+                            color={getStatusColor(getInvoiceStatus(invoice))}
                           />
                         </TableCell>
                         <TableCell>
