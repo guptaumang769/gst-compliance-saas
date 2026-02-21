@@ -85,6 +85,16 @@ async function createCustomer(businessId, customerData) {
       stateCode = '96'; // Export state code
     }
     
+    // Check for duplicate phone number within the same business
+    if (phone) {
+      const existingPhone = await prisma.customer.findFirst({
+        where: { businessId, phone, isActive: true }
+      });
+      if (existingPhone) {
+        throw new Error(`Another customer with phone number ${phone} already exists`);
+      }
+    }
+    
     // Create customer
     const customer = await prisma.customer.create({
       data: {
@@ -268,6 +278,16 @@ async function updateCustomer(customerId, businessId, updateData) {
       
       // Update state code if GSTIN changed
       stateCode = extractStateCode(updateData.gstin);
+    }
+    
+    // Check for duplicate phone number within the same business (excluding current customer)
+    if (updateData.phone && updateData.phone !== existingCustomer.phone) {
+      const existingPhone = await prisma.customer.findFirst({
+        where: { businessId, phone: updateData.phone, isActive: true, id: { not: customerId } }
+      });
+      if (existingPhone) {
+        throw new Error(`Another customer with phone number ${updateData.phone} already exists`);
+      }
     }
     
     // Sanitize update data - only include valid Customer model fields

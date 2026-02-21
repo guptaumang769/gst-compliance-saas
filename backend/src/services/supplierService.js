@@ -48,6 +48,16 @@ async function createSupplier(supplierData) {
     throw new Error('Business not found');
   }
 
+  // Check for duplicate phone number within the same business
+  if (phone) {
+    const existingPhone = await prisma.supplier.findFirst({
+      where: { businessId, phone, isActive: true }
+    });
+    if (existingPhone) {
+      throw new Error(`Another supplier with phone number ${phone} already exists`);
+    }
+  }
+
   // If GSTIN provided, validate it
   let stateCode = null;
   if (gstin) {
@@ -190,6 +200,16 @@ async function updateSupplier(supplierId, businessId, updateData) {
     contactPerson,
     supplierType
   } = updateData;
+
+  // Check for duplicate phone number within the same business (excluding current supplier)
+  if (phone && phone !== supplier.phone) {
+    const existingPhone = await prisma.supplier.findFirst({
+      where: { businessId, phone, isActive: true, id: { not: supplierId } }
+    });
+    if (existingPhone) {
+      throw new Error(`Another supplier with phone number ${phone} already exists`);
+    }
+  }
 
   // If GSTIN is being updated, validate it
   let stateCode = supplier.stateCode;
