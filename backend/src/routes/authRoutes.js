@@ -32,4 +32,7 @@ router.post('/logout', authenticateToken, authController.logout);
 // POST /api/auth/change-password - Change password
 router.post('/change-password', authenticateToken, authController.changePassword);
 
+// PUT /api/auth/profile - Update user/business profile
+router.put('/profile', authenticateToken, authController.updateProfile);
+
 module.exports = router;

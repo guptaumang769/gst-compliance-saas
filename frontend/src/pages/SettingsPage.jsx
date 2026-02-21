@@ -14,10 +14,10 @@ import {
   Tabs,
   Switch,
   FormControlLabel,
+  LinearProgress,
 } from '@mui/material';
 import {
   Business,
-  Person,
   Security,
   Notifications,
   Save,
@@ -40,12 +40,6 @@ const businessSchema = Yup.object({
   pincode: Yup.string().required('Pincode is required'),
 });
 
-// User Profile Schema
-const userSchema = Yup.object({
-  email: Yup.string().email('Invalid email').required('Email is required'),
-  phone: Yup.string().matches(/^[6-9]\d{9}$/, 'Invalid phone number'),
-});
-
 // Password Schema
 const passwordSchema = Yup.object({
   currentPassword: Yup.string().required('Current password is required'),
@@ -62,6 +56,7 @@ const passwordSchema = Yup.object({
 
 export default function SettingsPage() {
   const [currentTab, setCurrentTab] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { user } = useAuth();
   const [notificationSettings, setNotificationSettings] = useState({
@@ -86,30 +81,23 @@ export default function SettingsPage() {
       email: '',
     },
     validationSchema: businessSchema,
+    enableReinitialize: true,
     onSubmit: async (values, { setSubmitting }) => {
       try {
-        // await businessAPI.update(values);
+        await authAPI.updateProfile({
+          businessName: values.businessName,
+          addressLine1: values.addressLine1,
+          addressLine2: values.addressLine2,
+          city: values.city,
+          state: values.state,
+          pincode: values.pincode,
+          businessType: values.businessType,
+          phone: values.phone,
+          email: values.email,
+        });
         handleSuccess('Business profile updated successfully');
       } catch (err) {
-        handleApiError(err);
-      } finally {
-        setSubmitting(false);
-      }
-    },
-  });
-
-  const userFormik = useFormik({
-    initialValues: {
-      email: user?.email || '',
-      phone: '',
-    },
-    validationSchema: userSchema,
-    onSubmit: async (values, { setSubmitting }) => {
-      try {
-        // await userAPI.update(values);
-        handleSuccess('User profile updated successfully');
-      } catch (err) {
-        handleApiError(err);
+        handleApiError(err, 'Failed to update business profile');
       } finally {
         setSubmitting(false);
       }
@@ -125,16 +113,55 @@ export default function SettingsPage() {
     validationSchema: passwordSchema,
     onSubmit: async (values, { setSubmitting, resetForm }) => {
       try {
-        // await authAPI.changePassword(values);
-        handleSuccess('Password changed successfully');
+        // Backend expects { oldPassword, newPassword }
+        await authAPI.changePassword({
+          oldPassword: values.currentPassword,
+          newPassword: values.newPassword,
+        });
+        handleSuccess('Password changed successfully! Please log in with your new password next time.');
         resetForm();
       } catch (err) {
-        handleApiError(err);
+        handleApiError(err, 'Failed to change password');
       } finally {
         setSubmitting(false);
       }
     },
   });
+
+  // Fetch profile data on mount
+  useEffect(() => {
+    fetchProfileData();
+  }, []);
+
+  const fetchProfileData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authAPI.getProfile();
+      const userData = response.data?.user || response.data;
+      const business = userData?.businesses?.[0] || {};
+
+      // Populate business form
+      businessFormik.setValues({
+        businessName: business.businessName || '',
+        gstin: business.gstin || '',
+        pan: business.pan || '',
+        state: business.state || '',
+        businessType: business.businessType || 'Proprietorship',
+        addressLine1: business.addressLine1 || '',
+        addressLine2: business.addressLine2 || '',
+        city: business.city || '',
+        pincode: business.pincode || '',
+        phone: business.phone || '',
+        email: business.email || '',
+      });
+    } catch (err) {
+      const msg = handleApiError(err, 'Failed to load profile data');
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleNotificationChange = (setting) => {
     setNotificationSettings({
@@ -144,9 +171,19 @@ export default function SettingsPage() {
   };
 
   const handleSaveNotifications = () => {
-    // Save notification settings
     handleSuccess('Notification preferences saved');
   };
+
+  if (loading) {
+    return (
+      <Box sx={{ py: 4 }}>
+        <LinearProgress />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }} align="center">
+          Loading settings...
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -156,7 +193,7 @@ export default function SettingsPage() {
           Settings
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Manage your account and business preferences
+          Manage your business preferences, security, and notifications
         </Typography>
       </Box>
 
@@ -175,8 +212,7 @@ export default function SettingsPage() {
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
           <Tab icon={<Business />} label="Business Profile" iconPosition="start" />
-          <Tab icon={<Person />} label="User Profile" iconPosition="start" />
-          <Tab icon={<Security />} label="Security" iconPosition="start" />
+          <Tab icon={<Security />} label="Change Password" iconPosition="start" />
           <Tab icon={<Notifications />} label="Notifications" iconPosition="start" />
         </Tabs>
       </Card>
@@ -237,6 +273,10 @@ export default function SettingsPage() {
                     onBlur={businessFormik.handleBlur}
                     error={businessFormik.touched.gstin && Boolean(businessFormik.errors.gstin)}
                     helperText={businessFormik.touched.gstin && businessFormik.errors.gstin}
+                    disabled
+                    InputProps={{
+                      readOnly: true,
+                    }}
                   />
                 </Grid>
 
@@ -251,6 +291,10 @@ export default function SettingsPage() {
                     onBlur={businessFormik.handleBlur}
                     error={businessFormik.touched.pan && Boolean(businessFormik.errors.pan)}
                     helperText={businessFormik.touched.pan && businessFormik.errors.pan}
+                    disabled
+                    InputProps={{
+                      readOnly: true,
+                    }}
                   />
                 </Grid>
 
@@ -333,7 +377,7 @@ export default function SettingsPage() {
                     fullWidth
                     id="phone"
                     name="phone"
-                    label="Phone"
+                    label="Business Phone"
                     value={businessFormik.values.phone}
                     onChange={businessFormik.handleChange}
                   />
@@ -352,6 +396,9 @@ export default function SettingsPage() {
                 </Grid>
 
                 <Grid item xs={12}>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    GSTIN and PAN cannot be changed. Contact support if you need to update these.
+                  </Alert>
                   <Button
                     type="submit"
                     variant="contained"
@@ -359,7 +406,7 @@ export default function SettingsPage() {
                     disabled={businessFormik.isSubmitting}
                     className="gradient-button-primary"
                   >
-                    Save Changes
+                    {businessFormik.isSubmitting ? 'Saving...' : 'Save Changes'}
                   </Button>
                 </Grid>
               </Grid>
@@ -368,67 +415,8 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* User Profile Tab */}
+      {/* Change Password Tab */}
       {currentTab === 1 && (
-        <Card>
-          <CardContent>
-            <form onSubmit={userFormik.handleSubmit}>
-              <Grid container spacing={3}>
-                <Grid item xs={12}>
-                  <Typography variant="h6" gutterBottom>
-                    Personal Information
-                  </Typography>
-                  <Divider sx={{ mb: 3 }} />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    id="email"
-                    name="email"
-                    label="Email *"
-                    type="email"
-                    value={userFormik.values.email}
-                    onChange={userFormik.handleChange}
-                    onBlur={userFormik.handleBlur}
-                    error={userFormik.touched.email && Boolean(userFormik.errors.email)}
-                    helperText={userFormik.touched.email && userFormik.errors.email}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    id="phone"
-                    name="phone"
-                    label="Phone"
-                    value={userFormik.values.phone}
-                    onChange={userFormik.handleChange}
-                    onBlur={userFormik.handleBlur}
-                    error={userFormik.touched.phone && Boolean(userFormik.errors.phone)}
-                    helperText={userFormik.touched.phone && userFormik.errors.phone}
-                  />
-                </Grid>
-
-                <Grid item xs={12}>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    startIcon={<Save />}
-                    disabled={userFormik.isSubmitting}
-                    className="gradient-button-primary"
-                  >
-                    Save Changes
-                  </Button>
-                </Grid>
-              </Grid>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Security Tab */}
-      {currentTab === 2 && (
         <Card>
           <CardContent>
             <form onSubmit={passwordFormik.handleSubmit}>
@@ -501,7 +489,7 @@ export default function SettingsPage() {
                     disabled={passwordFormik.isSubmitting}
                     className="gradient-button-primary"
                   >
-                    Change Password
+                    {passwordFormik.isSubmitting ? 'Changing...' : 'Change Password'}
                   </Button>
                 </Grid>
               </Grid>
@@ -511,7 +499,7 @@ export default function SettingsPage() {
       )}
 
       {/* Notifications Tab */}
-      {currentTab === 3 && (
+      {currentTab === 2 && (
         <Card>
           <CardContent>
             <Grid container spacing={3}>

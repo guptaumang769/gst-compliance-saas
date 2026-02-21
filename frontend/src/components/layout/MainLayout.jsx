@@ -270,7 +270,7 @@ export default function MainLayout({ children }) {
         <MenuItem
           onClick={() => {
             handleCloseUserMenu();
-            navigate('/settings');
+            navigate('/profile');
           }}
           sx={{ py: 1.5 }}
         >

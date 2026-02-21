@@ -242,7 +242,13 @@ async function getUserProfile(userId) {
             subscriptionPlan: true,
             subscriptionStatus: true,
             invoiceLimit: true,
-            invoiceCountCurrentMonth: true
+            invoiceCountCurrentMonth: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            pincode: true,
+            tradeName: true,
+            registrationDate: true,
           }
         }
       }
@@ -357,11 +363,56 @@ async function changePassword(userId, oldPassword, newPassword) {
   }
 }
 
+/**
+ * Update user and business profile
+ */
+async function updateProfile(userId, profileData) {
+  try {
+    const { phone, businessName, addressLine1, addressLine2, city, state, pincode, businessType, businessEmail } = profileData;
+
+    // Find the user's active business
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      throw new Error('No active business found');
+    }
+
+    // Update business data
+    const businessUpdateData = {};
+    if (businessName) businessUpdateData.businessName = businessName;
+    if (addressLine1) businessUpdateData.addressLine1 = addressLine1;
+    if (addressLine2 !== undefined) businessUpdateData.addressLine2 = addressLine2;
+    if (city) businessUpdateData.city = city;
+    if (state) businessUpdateData.state = state;
+    if (pincode) businessUpdateData.pincode = pincode;
+    if (businessType) businessUpdateData.businessType = businessType;
+    if (phone !== undefined) businessUpdateData.phone = phone;
+    if (businessEmail !== undefined) businessUpdateData.email = businessEmail;
+
+    const updatedBusiness = await prisma.business.update({
+      where: { id: business.id },
+      data: businessUpdateData
+    });
+
+    return {
+      success: true,
+      message: 'Profile updated successfully',
+      business: updatedBusiness
+    };
+  } catch (error) {
+    console.error('Update profile error:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   register,
   login,
   getUserProfile,
   generateToken,
   verifyToken,
-  changePassword
+  changePassword,
+  updateProfile
 };

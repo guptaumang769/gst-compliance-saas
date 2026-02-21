@@ -214,10 +214,32 @@ async function changePassword(req, res) {
   }
 }
 
+/**
+ * PUT /api/auth/profile
+ * Update user and business profile
+ * Requires authentication
+ */
+async function updateProfile(req, res) {
+  try {
+    const userId = req.user.userId;
+    const { phone, businessName, addressLine1, addressLine2, city, state, pincode, businessType, email: businessEmail } = req.body;
+
+    const result = await authService.updateProfile(userId, {
+      phone, businessName, addressLine1, addressLine2, city, state, pincode, businessType, businessEmail
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Update profile error:', error);
+    return res.status(400).json({ success: false, error: error.message || 'Failed to update profile' });
+  }
+}
+
 module.exports = {
   register,
   login,
   getProfile,
   logout,
-  changePassword
+  changePassword,
+  updateProfile
 };

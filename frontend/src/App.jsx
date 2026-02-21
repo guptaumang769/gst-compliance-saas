@@ -10,6 +10,7 @@ import SuppliersPage from './pages/SuppliersPage';
 import PurchasesPage from './pages/PurchasesPage';
 import GSTReturnsPage from './pages/GSTReturnsPage';
 import SettingsPage from './pages/SettingsPage';
+import ProfilePage from './pages/ProfilePage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -111,6 +112,14 @@ function App() {
         element={
           <ProtectedRoute>
             <GSTReturnsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
           </ProtectedRoute>
         }
       />
