@@ -75,6 +75,8 @@ async function getPurchases(req, res) {
       endDate: req.query.endDate,
       purchaseType: req.query.purchaseType,
       isItcEligible: req.query.isItcEligible,
+      search: req.query.search,
+      status: req.query.status,
       page: parseInt(req.query.page) || 1,
       limit: parseInt(req.query.limit) || 50
     };

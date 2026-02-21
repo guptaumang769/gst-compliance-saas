@@ -73,10 +73,9 @@ const invoiceSchema = Yup.object({
 
 // Compute invoice status from available fields
 const getInvoiceStatus = (invoice) => {
-  if (invoice.isPaid) return 'Paid';
   if (invoice.filedInGstr1) return 'Filed';
+  if (invoice.emailSent) return 'Sent';
   if (invoice.pdfGenerated) return 'Generated';
-  if (invoice.dueDate && new Date(invoice.dueDate) < new Date()) return 'Overdue';
   return 'Draft';
 };
 
@@ -404,10 +403,9 @@ export default function InvoicesPage() {
                 >
                   <MenuItem value="">All</MenuItem>
                   <MenuItem value="draft">Draft</MenuItem>
-                  <MenuItem value="sent">Sent</MenuItem>
-                  <MenuItem value="paid">Paid</MenuItem>
-                  <MenuItem value="overdue">Overdue</MenuItem>
-                  <MenuItem value="cancelled">Cancelled</MenuItem>
+                  <MenuItem value="generated">Generated (PDF)</MenuItem>
+                  <MenuItem value="sent">Sent (Email)</MenuItem>
+                  <MenuItem value="filed">Filed in GSTR-1</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

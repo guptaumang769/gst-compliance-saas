@@ -61,14 +61,12 @@ const purchaseSchema = Yup.object({
 // Derive purchase status
 const getPurchaseStatus = (purchase) => {
   if (purchase.isPaid) return 'Paid';
-  if (purchase.dueDate && new Date(purchase.dueDate) < new Date()) return 'Overdue';
   return 'Pending';
 };
 
 const getPurchaseStatusColor = (status) => {
   switch (status) {
     case 'Paid': return 'success';
-    case 'Overdue': return 'error';
     case 'Pending': return 'warning';
     default: return 'default';
   }
@@ -360,7 +358,6 @@ export default function PurchasesPage() {
                   <MenuItem value="">All</MenuItem>
                   <MenuItem value="pending">Pending</MenuItem>
                   <MenuItem value="paid">Paid</MenuItem>
-                  <MenuItem value="overdue">Overdue</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

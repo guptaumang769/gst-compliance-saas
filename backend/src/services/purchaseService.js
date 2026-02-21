@@ -229,7 +229,7 @@ async function createPurchase(purchaseData) {
  * @returns {Promise<Array>} - List of purchases
  */
 async function getPurchases(businessId, filters = {}) {
-  const { supplierId, startDate, endDate, purchaseType, isItcEligible, page = 1, limit = 50 } = filters;
+  const { supplierId, startDate, endDate, purchaseType, isItcEligible, search, status, page = 1, limit = 50 } = filters;
 
   const where = {
     businessId,
@@ -258,6 +258,26 @@ async function getPurchases(businessId, filters = {}) {
     }
   }
 
+  // Search by supplier name or invoice number
+  if (search) {
+    where.OR = [
+      { supplierInvoiceNumber: { contains: search, mode: 'insensitive' } },
+      { supplier: { supplierName: { contains: search, mode: 'insensitive' } } }
+    ];
+  }
+
+  // Filter by payment status
+  if (status) {
+    switch (status.toLowerCase()) {
+      case 'paid':
+        where.isPaid = true;
+        break;
+      case 'pending':
+        where.isPaid = false;
+        break;
+    }
+  }
+
   const skip = (page - 1) * limit;
 
   const [purchases, total] = await Promise.all([
@@ -269,7 +289,8 @@ async function getPurchases(businessId, filters = {}) {
             id: true,
             supplierName: true,
             gstin: true,
-            state: true
+            state: true,
+            stateCode: true
           }
         },
         items: true

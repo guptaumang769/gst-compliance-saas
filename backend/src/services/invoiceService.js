@@ -210,6 +210,7 @@ async function getInvoices(businessId, options = {}) {
     page = 1,
     limit = 50,
     search,
+    status,
     invoiceType,
     customerId,
     startDate,
@@ -226,9 +227,11 @@ async function getInvoices(businessId, options = {}) {
       isActive: true
     };
     
+    // Search by invoice number or customer name
     if (search) {
       where.OR = [
-        { invoiceNumber: { contains: search, mode: 'insensitive' } }
+        { invoiceNumber: { contains: search, mode: 'insensitive' } },
+        { customer: { customerName: { contains: search, mode: 'insensitive' } } }
       ];
     }
     
@@ -252,6 +255,29 @@ async function getInvoices(businessId, options = {}) {
     
     if (filedInGstr1 !== undefined) {
       where.filedInGstr1 = filedInGstr1 === 'true';
+    }
+
+    // Filter by derived status (based on actual Invoice schema fields)
+    if (status) {
+      switch (status.toLowerCase()) {
+        case 'draft':
+          // Draft = no PDF generated, not filed, not sent
+          where.pdfGenerated = false;
+          where.filedInGstr1 = false;
+          break;
+        case 'generated':
+          // Generated = PDF generated but not filed
+          where.pdfGenerated = true;
+          where.filedInGstr1 = false;
+          break;
+        case 'filed':
+          where.filedInGstr1 = true;
+          break;
+        case 'sent':
+          where.emailSent = true;
+          where.filedInGstr1 = false;
+          break;
+      }
     }
     
     // Get invoices with count (include items for edit support)

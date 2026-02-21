@@ -89,6 +89,7 @@ async function getInvoices(req, res) {
       page: parseInt(req.query.page) || 1,
       limit: parseInt(req.query.limit) || 50,
       search: req.query.search,
+      status: req.query.status,
       invoiceType: req.query.invoiceType,
       customerId: req.query.customerId,
       startDate: req.query.startDate,
