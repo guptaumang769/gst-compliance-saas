@@ -18,8 +18,7 @@
  * - Table 6.1: Payment of tax
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/database');
 
 /**
  * Generate GSTR-3B return for a specific period

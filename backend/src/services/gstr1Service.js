@@ -16,8 +16,7 @@
  * - Quarterly: Turnover ≤ ₹5 crore (due 13th of month following quarter)
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/database');
 
 /**
  * Generate GSTR-1 return for a specific period

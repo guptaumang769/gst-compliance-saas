@@ -79,21 +79,6 @@ async function createCustomer(businessId, customerData) {
       }
     }
     
-    // ✅ Check for duplicate phone number if provided
-    if (phone) {
-      const existingPhone = await prisma.customer.findFirst({
-        where: {
-          businessId,
-          phone,
-          isActive: true
-        }
-      });
-      
-      if (existingPhone) {
-        throw new Error('A customer with this phone number already exists');
-      }
-    }
-    
     // Export customers don't need GSTIN
     if (customerType === 'export') {
       // For export, state can be "Export" or specific country
@@ -260,6 +245,7 @@ async function updateCustomer(customerId, businessId, updateData) {
     }
     
     // If updating GSTIN, validate it
+    let stateCode = existingCustomer.stateCode;
     if (updateData.gstin && updateData.gstin !== existingCustomer.gstin) {
       const gstinValidation = validateGSTIN(updateData.gstin);
       if (!gstinValidation.valid) {
@@ -281,29 +267,37 @@ async function updateCustomer(customerId, businessId, updateData) {
       }
       
       // Update state code if GSTIN changed
-      updateData.stateCode = extractStateCode(updateData.gstin);
+      stateCode = extractStateCode(updateData.gstin);
     }
     
-    // If updating phone, check for duplicates
-    if (updateData.phone && updateData.phone !== existingCustomer.phone) {
-      const duplicatePhone = await prisma.customer.findFirst({
-        where: {
-          businessId,
-          phone: updateData.phone,
-          id: { not: customerId },
-          isActive: true
-        }
-      });
-      
-      if (duplicatePhone) {
-        throw new Error('Another customer with this phone number already exists');
+    // Sanitize update data - only include valid Customer model fields
+    const sanitizedData = {};
+    const allowedFields = [
+      'customerName', 'gstin', 'pan', 'billingAddress', 'shippingAddress',
+      'city', 'state', 'pincode', 'email', 'phone', 'contactPerson', 'customerType'
+    ];
+    
+    for (const field of allowedFields) {
+      if (updateData[field] !== undefined) {
+        sanitizedData[field] = updateData[field];
+      }
+    }
+    
+    // Set computed stateCode
+    sanitizedData.stateCode = stateCode;
+    
+    // For B2C customers, clear GSTIN if not provided
+    if (sanitizedData.customerType === 'b2c') {
+      if (!sanitizedData.gstin) {
+        sanitizedData.gstin = null;
+        sanitizedData.stateCode = null;
       }
     }
     
     // Update customer
     const customer = await prisma.customer.update({
       where: { id: customerId },
-      data: updateData
+      data: sanitizedData
     });
     
     return {

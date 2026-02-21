@@ -29,6 +29,8 @@ import {
   FormControl,
   InputLabel,
   Select,
+  Divider,
+  Tooltip,
 } from '@mui/material';
 import {
   Add,
@@ -38,6 +40,8 @@ import {
   Receipt,
   AddCircleOutline,
   RemoveCircleOutline,
+  WarningAmber,
+  InfoOutlined,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -51,6 +55,22 @@ const purchaseSchema = Yup.object({
   supplierInvoiceDate: Yup.date().required('Invoice date is required'),
   items: Yup.array().min(1, 'At least one item is required'),
 });
+
+// Derive purchase status
+const getPurchaseStatus = (purchase) => {
+  if (purchase.isPaid) return 'Paid';
+  if (purchase.dueDate && new Date(purchase.dueDate) < new Date()) return 'Overdue';
+  return 'Pending';
+};
+
+const getPurchaseStatusColor = (status) => {
+  switch (status) {
+    case 'Paid': return 'success';
+    case 'Overdue': return 'error';
+    case 'Pending': return 'warning';
+    default: return 'default';
+  }
+};
 
 export default function PurchasesPage() {
   const [purchases, setPurchases] = useState([]);
@@ -86,7 +106,6 @@ export default function PurchasesPage() {
       };
 
       const response = await purchaseAPI.getAll(params);
-      // Backend returns { purchases: [...], pagination: { total } }
       setPurchases(response.data.purchases || []);
       setTotalCount(response.data.pagination?.total || 0);
     } catch (err) {
@@ -132,7 +151,7 @@ export default function PurchasesPage() {
           ...values,
           items: values.items.map(item => ({
             ...item,
-            itemName: item.description, // Backend expects itemName
+            itemName: item.description,
             discount: parseFloat(item.discount) || 0,
             cessRate: parseFloat(item.cessRate) || 0,
           })),
@@ -160,21 +179,21 @@ export default function PurchasesPage() {
   const handleOpenDialog = (purchase = null) => {
     if (purchase) {
       setEditingPurchase(purchase);
-      setSelectedSupplier(suppliers.find(s => s.id === purchase.supplierId));
+      setSelectedSupplier(suppliers.find(s => s.id === purchase.supplierId) || null);
       formik.setValues({
         supplierId: purchase.supplierId || '',
         supplierInvoiceNumber: purchase.supplierInvoiceNumber || '',
         supplierInvoiceDate: purchase.supplierInvoiceDate?.split('T')[0] || new Date().toISOString().split('T')[0],
         dueDate: purchase.dueDate?.split('T')[0] || '',
         notes: purchase.notes || '',
-        items: (purchase.items || purchase.PurchaseItem || []).map(item => ({
+        items: (purchase.items || []).map(item => ({
           description: item.itemName || item.description || '',
           hsnCode: item.hsnCode || '',
           quantity: item.quantity || 1,
-          unitPrice: item.unitPrice || 0,
-          gstRate: item.gstRate || 18,
-          cessRate: item.cessRate || 0,
-          discount: item.discountPercent || item.discount || 0,
+          unitPrice: parseFloat(item.unitPrice) || 0,
+          gstRate: parseFloat(item.gstRate) || 18,
+          cessRate: parseFloat(item.cessRate) || 0,
+          discount: parseFloat(item.discountPercent) || parseFloat(item.discount) || 0,
         })),
       });
     } else {
@@ -235,17 +254,37 @@ export default function PurchasesPage() {
   };
 
   const calculateItemTotal = (item) => {
-    const subtotal = item.quantity * item.unitPrice;
+    const subtotal = (item.quantity || 0) * (item.unitPrice || 0);
     const discountAmount = (subtotal * (item.discount || 0)) / 100;
     const taxableAmount = subtotal - discountAmount;
-    const gstAmount = (taxableAmount * item.gstRate) / 100;
+    const gstAmount = (taxableAmount * (item.gstRate || 0)) / 100;
     const cessAmount = (taxableAmount * (item.cessRate || 0)) / 100;
     return taxableAmount + gstAmount + cessAmount;
+  };
+
+  const calculatePurchaseSubtotal = () => {
+    return formik.values.items.reduce((sum, item) => {
+      const subtotal = (item.quantity || 0) * (item.unitPrice || 0);
+      const discountAmount = (subtotal * (item.discount || 0)) / 100;
+      return sum + subtotal - discountAmount;
+    }, 0);
+  };
+
+  const calculatePurchaseGST = () => {
+    return formik.values.items.reduce((sum, item) => {
+      const subtotal = (item.quantity || 0) * (item.unitPrice || 0);
+      const discountAmount = (subtotal * (item.discount || 0)) / 100;
+      const taxableAmount = subtotal - discountAmount;
+      return sum + (taxableAmount * (item.gstRate || 0)) / 100;
+    }, 0);
   };
 
   const calculatePurchaseTotal = () => {
     return formik.values.items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
   };
+
+  // Check if selected supplier is unregistered (by type OR by absence of GSTIN)
+  const isUnregisteredSupplier = selectedSupplier && (selectedSupplier.supplierType === 'unregistered' || !selectedSupplier.gstin);
 
   return (
     <Box>
@@ -333,64 +372,104 @@ export default function PurchasesPage() {
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Invoice #</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Supplier</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>GSTIN</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Taxable Amt</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>GST</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Total</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>ITC</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {purchases.map((purchase) => (
-                      <TableRow key={purchase.id} hover>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={600} fontFamily="monospace">
-                            {purchase.supplierInvoiceNumber}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {purchase.supplier?.supplierName || purchase.Supplier?.supplierName || 'N/A'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>{formatDate(purchase.supplierInvoiceDate)}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={600}>
-                            {formatCurrency(purchase.totalAmount)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="success.main" fontWeight={600}>
-                            {formatCurrency(purchase.itcAmount || 0)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={purchase.status || 'pending'}
-                            size="small"
-                            color={purchase.status === 'paid' ? 'success' : 'warning'}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <IconButton
+                    {purchases.map((purchase) => {
+                      const status = getPurchaseStatus(purchase);
+                      const isIntraState = purchase.supplierStateCode === purchase.buyerStateCode;
+                      const gstLabel = isIntraState
+                        ? `CGST: ${formatCurrency(purchase.cgstAmount || 0)} + SGST: ${formatCurrency(purchase.sgstAmount || 0)}`
+                        : `IGST: ${formatCurrency(purchase.igstAmount || 0)}`;
+                      
+                      return (
+                        <TableRow key={purchase.id} hover>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={600} fontFamily="monospace">
+                              {purchase.supplierInvoiceNumber}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {purchase.supplier?.supplierName || 'N/A'}
+                            </Typography>
+                            {purchase.supplier && !purchase.supplier.gstin && (
+                              <Chip label="Unregistered" size="small" color="warning" variant="outlined" sx={{ mt: 0.5, height: 20, fontSize: '0.65rem' }} />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem">
+                              {purchase.supplier?.gstin || '-'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{formatDate(purchase.supplierInvoiceDate)}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {formatCurrency(purchase.taxableAmount || purchase.subtotal || 0)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip title={gstLabel} arrow>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600} color="primary">
+                                  {formatCurrency(purchase.totalTaxAmount || 0)}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {isIntraState ? 'CGST+SGST' : 'IGST'}
+                                </Typography>
+                              </Box>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={700}>
+                              {formatCurrency(purchase.totalAmount)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" color={purchase.isItcEligible ? 'success.main' : 'text.secondary'} fontWeight={600}>
+                              {purchase.isItcEligible ? formatCurrency(purchase.itcAmount || 0) : 'N/A'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={status}
                               size="small"
-                              onClick={() => handleOpenDialog(purchase)}
-                              color="primary"
-                            >
-                              <Edit fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleOpenDeleteDialog(purchase)}
-                              color="error"
-                            >
-                              <Delete fontSize="small" />
-                            </IconButton>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                              color={getPurchaseStatusColor(status)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                              <Tooltip title="Edit">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleOpenDialog(purchase)}
+                                  color="primary"
+                                >
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleOpenDeleteDialog(purchase)}
+                                  color="error"
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -438,7 +517,7 @@ export default function PurchasesPage() {
           <DialogContent dividers>
             <Grid container spacing={3}>
               {/* Supplier & Dates */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <Autocomplete
                   value={selectedSupplier}
                   onChange={(e, newValue) => {
@@ -446,7 +525,25 @@ export default function PurchasesPage() {
                     formik.setFieldValue('supplierId', newValue?.id || '');
                   }}
                   options={suppliers}
-                  getOptionLabel={(option) => option.supplierName || ''}
+                  getOptionLabel={(option) => {
+                    const gstin = option.gstin ? ` (${option.gstin})` : ' (Unregistered)';
+                    return `${option.supplierName}${gstin}`;
+                  }}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>
+                          {option.supplierName}
+                          {option.supplierType === 'unregistered' && (
+                            <Chip label="Unregistered" size="small" color="warning" variant="outlined" sx={{ ml: 1, height: 18, fontSize: '0.6rem' }} />
+                          )}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {option.gstin || 'No GSTIN'} | {option.state}
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
                   renderInput={(params) => (
                     <TextField
                       {...params}
@@ -472,7 +569,7 @@ export default function PurchasesPage() {
                 />
               </Grid>
 
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} md={2.5}>
                 <TextField
                   fullWidth
                   id="supplierInvoiceDate"
@@ -487,6 +584,54 @@ export default function PurchasesPage() {
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
+
+              <Grid item xs={12} md={2.5}>
+                <TextField
+                  fullWidth
+                  id="dueDate"
+                  name="dueDate"
+                  label="Due Date"
+                  type="date"
+                  value={formik.values.dueDate}
+                  onChange={formik.handleChange}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+
+              {/* Unregistered Supplier Warning */}
+              {isUnregisteredSupplier && (
+                <Grid item xs={12}>
+                  <Alert severity="warning" icon={<WarningAmber />}>
+                    <Typography variant="body2" fontWeight={600}>
+                      ⚠️ Unregistered Supplier - ITC Impact
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5 }}>
+                      You are purchasing from an <strong>unregistered supplier</strong> ({selectedSupplier.supplierName}).
+                      Under GST rules:
+                    </Typography>
+                    <Typography component="ul" variant="body2" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                      <li>No Input Tax Credit (ITC) can be claimed on this purchase</li>
+                      <li>You may need to pay GST under Reverse Charge Mechanism (RCM) for certain goods/services</li>
+                      <li>This purchase will be reported under Table 3.1(d) of GSTR-3B</li>
+                    </Typography>
+                  </Alert>
+                </Grid>
+              )}
+
+              {/* Supplier Info Banner */}
+              {selectedSupplier && !isUnregisteredSupplier && (
+                <Grid item xs={12}>
+                  <Alert severity="info" icon={<InfoOutlined />}>
+                    <Typography variant="body2">
+                      <strong>Supplier:</strong> {selectedSupplier.supplierName} |{' '}
+                      <strong>GSTIN:</strong> {selectedSupplier.gstin || 'N/A'} |{' '}
+                      <strong>State:</strong> {selectedSupplier.state} |{' '}
+                      <strong>Type:</strong> {selectedSupplier.supplierType} |{' '}
+                      <strong>ITC:</strong> Eligible ✓
+                    </Typography>
+                  </Alert>
+                </Grid>
+              )}
 
               {/* Line Items */}
               <Grid item xs={12}>
@@ -504,8 +649,8 @@ export default function PurchasesPage() {
 
                 {formik.values.items.map((item, index) => (
                   <Paper key={index} sx={{ p: 2, mb: 2 }} variant="outlined">
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} md={4}>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={12} md={3}>
                         <TextField
                           fullWidth
                           label="Description *"
@@ -517,10 +662,10 @@ export default function PurchasesPage() {
                         />
                       </Grid>
 
-                      <Grid item xs={6} md={2}>
+                      <Grid item xs={6} md={1.5}>
                         <TextField
                           fullWidth
-                          label="HSN Code *"
+                          label="HSN Code"
                           value={item.hsnCode}
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.hsnCode`, e.target.value)
@@ -529,16 +674,17 @@ export default function PurchasesPage() {
                         />
                       </Grid>
 
-                      <Grid item xs={6} md={1.5}>
+                      <Grid item xs={6} md={1}>
                         <TextField
                           fullWidth
                           label="Qty *"
                           type="number"
                           value={item.quantity}
                           onChange={(e) =>
-                            formik.setFieldValue(`items.${index}.quantity`, parseFloat(e.target.value))
+                            formik.setFieldValue(`items.${index}.quantity`, parseFloat(e.target.value) || 0)
                           }
                           size="small"
+                          inputProps={{ min: 1 }}
                         />
                       </Grid>
 
@@ -549,9 +695,24 @@ export default function PurchasesPage() {
                           type="number"
                           value={item.unitPrice}
                           onChange={(e) =>
-                            formik.setFieldValue(`items.${index}.unitPrice`, parseFloat(e.target.value))
+                            formik.setFieldValue(`items.${index}.unitPrice`, parseFloat(e.target.value) || 0)
                           }
                           size="small"
+                          inputProps={{ min: 0 }}
+                        />
+                      </Grid>
+
+                      <Grid item xs={6} md={1}>
+                        <TextField
+                          fullWidth
+                          label="Disc%"
+                          type="number"
+                          value={item.discount}
+                          onChange={(e) =>
+                            formik.setFieldValue(`items.${index}.discount`, parseFloat(e.target.value) || 0)
+                          }
+                          size="small"
+                          inputProps={{ min: 0, max: 100 }}
                         />
                       </Grid>
 
@@ -562,15 +723,30 @@ export default function PurchasesPage() {
                           type="number"
                           value={item.gstRate}
                           onChange={(e) =>
-                            formik.setFieldValue(`items.${index}.gstRate`, parseFloat(e.target.value))
+                            formik.setFieldValue(`items.${index}.gstRate`, parseFloat(e.target.value) || 0)
                           }
                           size="small"
+                          inputProps={{ min: 0, max: 100 }}
                         />
                       </Grid>
 
-                      <Grid item xs={10} md={1.5}>
-                        <Typography variant="caption" color="text.secondary">
-                          Total: {formatCurrency(calculateItemTotal(item))}
+                      <Grid item xs={6} md={1}>
+                        <TextField
+                          fullWidth
+                          label="Cess%"
+                          type="number"
+                          value={item.cessRate}
+                          onChange={(e) =>
+                            formik.setFieldValue(`items.${index}.cessRate`, parseFloat(e.target.value) || 0)
+                          }
+                          size="small"
+                          inputProps={{ min: 0, max: 100 }}
+                        />
+                      </Grid>
+
+                      <Grid item xs={10} md={1}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                          {formatCurrency(calculateItemTotal(item))}
                         </Typography>
                       </Grid>
 
@@ -591,7 +767,7 @@ export default function PurchasesPage() {
               </Grid>
 
               {/* Notes & Total */}
-              <Grid item xs={12} md={8}>
+              <Grid item xs={12} md={7}>
                 <TextField
                   fullWidth
                   id="notes"
@@ -604,14 +780,37 @@ export default function PurchasesPage() {
                 />
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <Card sx={{ bgcolor: 'success.50', p: 2 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Purchase Total
+              <Grid item xs={12} md={5}>
+                <Card sx={{ bgcolor: '#f0faf0', p: 2, border: '1px solid #b6e0b6' }}>
+                  <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                    Purchase Summary
                   </Typography>
-                  <Typography variant="h4" color="success.main" fontWeight={700}>
-                    {formatCurrency(calculatePurchaseTotal())}
-                  </Typography>
+                  <Divider sx={{ my: 1 }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="body2">Taxable Amount:</Typography>
+                    <Typography variant="body2" fontWeight={600}>{formatCurrency(calculatePurchaseSubtotal())}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="body2">GST Amount:</Typography>
+                    <Typography variant="body2" fontWeight={600} color="primary">{formatCurrency(calculatePurchaseGST())}</Typography>
+                  </Box>
+                  <Divider sx={{ my: 1 }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="h6">Total:</Typography>
+                    <Typography variant="h6" color="success.main" fontWeight={700}>
+                      {formatCurrency(calculatePurchaseTotal())}
+                    </Typography>
+                  </Box>
+                  {isUnregisteredSupplier && (
+                    <Typography variant="caption" color="warning.main" sx={{ mt: 1, display: 'block' }}>
+                      ⚠️ No ITC available for unregistered supplier purchases
+                    </Typography>
+                  )}
+                  {selectedSupplier && !isUnregisteredSupplier && (
+                    <Typography variant="caption" color="success.main" sx={{ mt: 1, display: 'block' }}>
+                      ✓ ITC claimable: {formatCurrency(calculatePurchaseGST())}
+                    </Typography>
+                  )}
                 </Card>
               </Grid>
             </Grid>

@@ -14,8 +14,7 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/database');
 
 // PDF storage directory
 const PDF_DIR = process.env.PDF_STORAGE_PATH || path.join(__dirname, '../../storage/invoices');

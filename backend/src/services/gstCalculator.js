@@ -181,8 +181,9 @@ function calculateInvoiceGST(params) {
     // Calculate item subtotal (quantity * unit price)
     const itemSubtotal = parseFloat(item.quantity) * parseFloat(item.unitPrice);
     
-    // Apply item-level discount if any
-    const itemDiscountAmount = item.discountAmount || 0;
+    // Apply item-level discount if any (support both percentage and absolute amount)
+    const itemDiscountPercent = parseFloat(item.discount || item.discountPercent || 0);
+    const itemDiscountAmount = item.discountAmount || (itemSubtotal * itemDiscountPercent / 100);
     const itemTaxableAmount = itemSubtotal - itemDiscountAmount;
     
     // Calculate GST for this item
@@ -206,6 +207,8 @@ function calculateInvoiceGST(params) {
     calculatedItems.push({
       ...item,
       subtotal: itemSubtotal,
+      discountPercent: roundTo2Decimals(itemDiscountPercent),
+      discountAmount: roundTo2Decimals(itemDiscountAmount),
       taxableAmount: itemTaxableAmount,
       ...itemGst
     });

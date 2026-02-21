@@ -12,8 +12,7 @@
 
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/database');
 const { getPlan, getPlanPrice } = require('../config/subscriptionPlans');
 
 // Initialize Razorpay instance

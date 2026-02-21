@@ -30,6 +30,7 @@ import {
   InputLabel,
   Select,
   Autocomplete,
+  Tooltip,
 } from '@mui/material';
 import {
   Add,
@@ -42,6 +43,7 @@ import {
   Close,
   AddCircleOutline,
   RemoveCircleOutline,
+  InfoOutlined,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -58,23 +60,32 @@ const lineItemSchema = Yup.object({
   unitPrice: Yup.number().min(0, 'Price must be positive').required('Price is required'),
   gstRate: Yup.number().min(0).max(100).required('GST rate is required'),
   cessRate: Yup.number().min(0).max(100),
+  discount: Yup.number().min(0).max(100),
 });
 
 // Invoice Schema
 const invoiceSchema = Yup.object({
   customerId: Yup.string().required('Customer is required'),
   invoiceDate: Yup.date().required('Invoice date is required'),
-  dueDate: Yup.date().min(Yup.ref('invoiceDate'), 'Due date must be after invoice date'),
+  dueDate: Yup.date().min(Yup.ref('invoiceDate'), 'Due date must be after invoice date').nullable(),
   items: Yup.array().of(lineItemSchema).min(1, 'At least one item is required'),
 });
 
 // Compute invoice status from available fields
 const getInvoiceStatus = (invoice) => {
-  if (invoice.status) return invoice.status;
+  if (invoice.isPaid) return 'Paid';
   if (invoice.filedInGstr1) return 'Filed';
-  if (invoice.emailSent) return 'Sent';
   if (invoice.pdfGenerated) return 'Generated';
+  if (invoice.dueDate && new Date(invoice.dueDate) < new Date()) return 'Overdue';
   return 'Draft';
+};
+
+// Determine supply type from state codes
+const getSupplyType = (invoice) => {
+  if (invoice.sellerStateCode && invoice.buyerStateCode) {
+    return invoice.sellerStateCode === invoice.buyerStateCode ? 'Intra-State' : 'Inter-State';
+  }
+  return 'N/A';
 };
 
 export default function InvoicesPage() {
@@ -92,6 +103,7 @@ export default function InvoicesPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(null); // track which invoice PDF is loading
 
   useEffect(() => {
     fetchInvoices();
@@ -111,7 +123,6 @@ export default function InvoicesPage() {
       };
 
       const response = await invoiceAPI.getAll(params);
-      // Backend returns { invoices: [...], pagination: { total } }
       setInvoices(response.data.invoices || []);
       setTotalCount(response.data.pagination?.total || 0);
     } catch (err) {
@@ -156,7 +167,7 @@ export default function InvoicesPage() {
           ...values,
           items: values.items.map(item => ({
             ...item,
-            itemName: item.description, // Backend expects itemName
+            itemName: item.description,
             discount: parseFloat(item.discount) || 0,
             cessRate: parseFloat(item.cessRate) || 0,
           })),
@@ -184,20 +195,20 @@ export default function InvoicesPage() {
   const handleOpenDialog = (invoice = null) => {
     if (invoice) {
       setEditingInvoice(invoice);
-      setSelectedCustomer(customers.find(c => c.id === invoice.customerId));
+      setSelectedCustomer(customers.find(c => c.id === invoice.customerId) || null);
       formik.setValues({
         customerId: invoice.customerId || '',
         invoiceDate: invoice.invoiceDate?.split('T')[0] || new Date().toISOString().split('T')[0],
         dueDate: invoice.dueDate?.split('T')[0] || '',
         notes: invoice.notes || '',
-        items: (invoice.items || invoice.InvoiceItem || []).map(item => ({
+        items: (invoice.items || []).map(item => ({
           description: item.itemName || item.description || '',
           hsnCode: item.hsnCode || '',
           quantity: item.quantity || 1,
-          unitPrice: item.unitPrice || 0,
-          gstRate: item.gstRate || 18,
-          cessRate: item.cessRate || 0,
-          discount: item.discountPercent || item.discount || 0,
+          unitPrice: parseFloat(item.unitPrice) || 0,
+          gstRate: parseFloat(item.gstRate) || 18,
+          cessRate: parseFloat(item.cessRate) || 0,
+          discount: parseFloat(item.discountPercent) || parseFloat(item.discount) || 0,
         })),
       });
     } else {
@@ -236,8 +247,10 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleDownloadPDF = async (invoiceId) => {
+  const handleDownloadPDF = async (e, invoiceId) => {
+    e.stopPropagation();
     try {
+      setPdfLoading(invoiceId);
       const response = await invoiceAPI.downloadPDF(invoiceId);
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
@@ -246,13 +259,19 @@ export default function InvoicesPage() {
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
       handleSuccess('PDF downloaded successfully');
+      // Refresh to update status (pdfGenerated flag)
+      fetchInvoices();
     } catch (err) {
       handleApiError(err, 'Failed to download PDF');
+    } finally {
+      setPdfLoading(null);
     }
   };
 
-  const handleSendEmail = async (invoiceId) => {
+  const handleSendEmail = async (e, invoiceId) => {
+    e.stopPropagation();
     try {
       await invoiceAPI.sendEmail(invoiceId);
       handleSuccess('Invoice sent via email successfully');
@@ -283,12 +302,29 @@ export default function InvoicesPage() {
   };
 
   const calculateItemTotal = (item) => {
-    const subtotal = item.quantity * item.unitPrice;
+    const subtotal = (item.quantity || 0) * (item.unitPrice || 0);
     const discountAmount = (subtotal * (item.discount || 0)) / 100;
     const taxableAmount = subtotal - discountAmount;
-    const gstAmount = (taxableAmount * item.gstRate) / 100;
+    const gstAmount = (taxableAmount * (item.gstRate || 0)) / 100;
     const cessAmount = (taxableAmount * (item.cessRate || 0)) / 100;
     return taxableAmount + gstAmount + cessAmount;
+  };
+
+  const calculateInvoiceSubtotal = () => {
+    return formik.values.items.reduce((sum, item) => {
+      const subtotal = (item.quantity || 0) * (item.unitPrice || 0);
+      const discountAmount = (subtotal * (item.discount || 0)) / 100;
+      return sum + subtotal - discountAmount;
+    }, 0);
+  };
+
+  const calculateInvoiceGST = () => {
+    return formik.values.items.reduce((sum, item) => {
+      const subtotal = (item.quantity || 0) * (item.unitPrice || 0);
+      const discountAmount = (subtotal * (item.discount || 0)) / 100;
+      const taxableAmount = subtotal - discountAmount;
+      return sum + (taxableAmount * (item.gstRate || 0)) / 100;
+    }, 0);
   };
 
   const calculateInvoiceTotal = () => {
@@ -297,6 +333,18 @@ export default function InvoicesPage() {
 
   const getStatusColor = (status) => {
     return INVOICE_STATUS_COLORS[status] || 'default';
+  };
+
+  // Get customer info for display in the form
+  const getCustomerStateInfo = () => {
+    if (!selectedCustomer) return null;
+    const isSameState = selectedCustomer.stateCode && selectedCustomer.stateCode === customers[0]?.stateCode; // Approximation
+    return {
+      gstin: selectedCustomer.gstin,
+      state: selectedCustomer.state,
+      stateCode: selectedCustomer.stateCode,
+      customerType: selectedCustomer.customerType,
+    };
   };
 
   return (
@@ -387,76 +435,116 @@ export default function InvoicesPage() {
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Invoice #</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Customer</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>GSTIN</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Taxable Amt</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>GST</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Total</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {invoices.map((invoice) => (
-                      <TableRow key={invoice.id} hover>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={600} fontFamily="monospace">
-                            {invoice.invoiceNumber}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {invoice.customer?.customerName || invoice.Customer?.customerName || 'N/A'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={600}>
-                            {formatCurrency(invoice.totalAmount)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={getInvoiceStatus(invoice)}
-                            size="small"
-                            color={getStatusColor(getInvoiceStatus(invoice))}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <IconButton
+                    {invoices.map((invoice) => {
+                      const supplyType = getSupplyType(invoice);
+                      const gstLabel = supplyType === 'Intra-State' 
+                        ? `CGST: ${formatCurrency(invoice.cgstAmount || 0)} + SGST: ${formatCurrency(invoice.sgstAmount || 0)}`
+                        : `IGST: ${formatCurrency(invoice.igstAmount || 0)}`;
+                      
+                      return (
+                        <TableRow key={invoice.id} hover>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={600} fontFamily="monospace">
+                              {invoice.invoiceNumber}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {invoice.customer?.customerName || 'N/A'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {invoice.customer?.customerType?.toUpperCase()}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem">
+                              {invoice.customer?.gstin || '-'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {formatCurrency(invoice.taxableAmount || invoice.subtotal || 0)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip title={gstLabel} arrow>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600} color="primary">
+                                  {formatCurrency(invoice.totalTaxAmount || 0)}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {supplyType === 'Intra-State' ? 'CGST+SGST' : supplyType === 'Inter-State' ? 'IGST' : ''}
+                                </Typography>
+                              </Box>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={700}>
+                              {formatCurrency(invoice.totalAmount)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={supplyType}
                               size="small"
-                              onClick={() => handleDownloadPDF(invoice.id)}
-                              color="primary"
-                              title="Download PDF"
-                            >
-                              <PictureAsPdf fontSize="small" />
-                            </IconButton>
-                            <IconButton
+                              variant="outlined"
+                              color={supplyType === 'Intra-State' ? 'info' : 'secondary'}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={getInvoiceStatus(invoice)}
                               size="small"
-                              onClick={() => handleSendEmail(invoice.id)}
-                              color="info"
-                              title="Send Email"
-                            >
-                              <Email fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleOpenDialog(invoice)}
-                              color="primary"
-                              title="Edit"
-                            >
-                              <Edit fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleOpenDeleteDialog(invoice)}
-                              color="error"
-                              title="Delete"
-                            >
-                              <Delete fontSize="small" />
-                            </IconButton>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                              color={getStatusColor(getInvoiceStatus(invoice))}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                              <Tooltip title="Download PDF">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => handleDownloadPDF(e, invoice.id)}
+                                  color="primary"
+                                  disabled={pdfLoading === invoice.id}
+                                >
+                                  <PictureAsPdf fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Edit">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleOpenDialog(invoice)}
+                                  color="primary"
+                                >
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleOpenDeleteDialog(invoice)}
+                                  color="error"
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -512,7 +600,23 @@ export default function InvoicesPage() {
                     formik.setFieldValue('customerId', newValue?.id || '');
                   }}
                   options={customers}
-                  getOptionLabel={(option) => option.customerName || ''}
+                  getOptionLabel={(option) => {
+                    const gstin = option.gstin ? ` (${option.gstin})` : '';
+                    const type = option.customerType ? ` [${option.customerType.toUpperCase()}]` : '';
+                    return `${option.customerName}${gstin}${type}`;
+                  }}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>
+                          {option.customerName}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {option.gstin || 'No GSTIN'} | {option.state} | {option.customerType?.toUpperCase()}
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
                   renderInput={(params) => (
                     <TextField
                       {...params}
@@ -556,6 +660,24 @@ export default function InvoicesPage() {
                 />
               </Grid>
 
+              {/* Customer Info Banner */}
+              {selectedCustomer && (
+                <Grid item xs={12}>
+                  <Alert severity="info" icon={<InfoOutlined />}>
+                    <Typography variant="body2">
+                      <strong>Customer:</strong> {selectedCustomer.customerName} |{' '}
+                      <strong>GSTIN:</strong> {selectedCustomer.gstin || 'N/A (B2C)'} |{' '}
+                      <strong>State:</strong> {selectedCustomer.state} |{' '}
+                      <strong>Type:</strong> {selectedCustomer.customerType?.toUpperCase()} |{' '}
+                      <strong>GST:</strong>{' '}
+                      {selectedCustomer.stateCode
+                        ? 'Auto-calculated based on state (CGST+SGST for same state, IGST for different state)'
+                        : 'State code not available - will use your business state'}
+                    </Typography>
+                  </Alert>
+                </Grid>
+              )}
+
               {/* Line Items */}
               <Grid item xs={12}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -572,8 +694,8 @@ export default function InvoicesPage() {
 
                 {formik.values.items.map((item, index) => (
                   <Paper key={index} sx={{ p: 2, mb: 2 }} variant="outlined">
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} md={4}>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={12} md={3}>
                         <TextField
                           fullWidth
                           label="Description *"
@@ -585,7 +707,7 @@ export default function InvoicesPage() {
                         />
                       </Grid>
 
-                      <Grid item xs={6} md={2}>
+                      <Grid item xs={6} md={1.5}>
                         <TextField
                           fullWidth
                           label="HSN Code *"
@@ -597,16 +719,17 @@ export default function InvoicesPage() {
                         />
                       </Grid>
 
-                      <Grid item xs={6} md={1.5}>
+                      <Grid item xs={6} md={1}>
                         <TextField
                           fullWidth
                           label="Qty *"
                           type="number"
                           value={item.quantity}
                           onChange={(e) =>
-                            formik.setFieldValue(`items.${index}.quantity`, parseFloat(e.target.value))
+                            formik.setFieldValue(`items.${index}.quantity`, parseFloat(e.target.value) || 0)
                           }
                           size="small"
+                          inputProps={{ min: 1 }}
                         />
                       </Grid>
 
@@ -617,9 +740,24 @@ export default function InvoicesPage() {
                           type="number"
                           value={item.unitPrice}
                           onChange={(e) =>
-                            formik.setFieldValue(`items.${index}.unitPrice`, parseFloat(e.target.value))
+                            formik.setFieldValue(`items.${index}.unitPrice`, parseFloat(e.target.value) || 0)
                           }
                           size="small"
+                          inputProps={{ min: 0 }}
+                        />
+                      </Grid>
+
+                      <Grid item xs={6} md={1}>
+                        <TextField
+                          fullWidth
+                          label="Disc%"
+                          type="number"
+                          value={item.discount}
+                          onChange={(e) =>
+                            formik.setFieldValue(`items.${index}.discount`, parseFloat(e.target.value) || 0)
+                          }
+                          size="small"
+                          inputProps={{ min: 0, max: 100 }}
                         />
                       </Grid>
 
@@ -630,15 +768,30 @@ export default function InvoicesPage() {
                           type="number"
                           value={item.gstRate}
                           onChange={(e) =>
-                            formik.setFieldValue(`items.${index}.gstRate`, parseFloat(e.target.value))
+                            formik.setFieldValue(`items.${index}.gstRate`, parseFloat(e.target.value) || 0)
                           }
                           size="small"
+                          inputProps={{ min: 0, max: 100 }}
                         />
                       </Grid>
 
-                      <Grid item xs={10} md={1.5}>
-                        <Typography variant="caption" color="text.secondary">
-                          Total: {formatCurrency(calculateItemTotal(item))}
+                      <Grid item xs={6} md={1}>
+                        <TextField
+                          fullWidth
+                          label="Cess%"
+                          type="number"
+                          value={item.cessRate}
+                          onChange={(e) =>
+                            formik.setFieldValue(`items.${index}.cessRate`, parseFloat(e.target.value) || 0)
+                          }
+                          size="small"
+                          inputProps={{ min: 0, max: 100 }}
+                        />
+                      </Grid>
+
+                      <Grid item xs={10} md={1}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                          {formatCurrency(calculateItemTotal(item))}
                         </Typography>
                       </Grid>
 
@@ -659,7 +812,7 @@ export default function InvoicesPage() {
               </Grid>
 
               {/* Notes & Total */}
-              <Grid item xs={12} md={8}>
+              <Grid item xs={12} md={7}>
                 <TextField
                   fullWidth
                   id="notes"
@@ -672,14 +825,32 @@ export default function InvoicesPage() {
                 />
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <Card sx={{ bgcolor: 'primary.50', p: 2 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Invoice Total
+              <Grid item xs={12} md={5}>
+                <Card sx={{ bgcolor: '#f0f7ff', p: 2, border: '1px solid #bbd6f7' }}>
+                  <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                    Invoice Summary
                   </Typography>
-                  <Typography variant="h4" color="primary" fontWeight={700}>
-                    {formatCurrency(calculateInvoiceTotal())}
-                  </Typography>
+                  <Divider sx={{ my: 1 }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="body2">Taxable Amount:</Typography>
+                    <Typography variant="body2" fontWeight={600}>{formatCurrency(calculateInvoiceSubtotal())}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="body2">GST Amount:</Typography>
+                    <Typography variant="body2" fontWeight={600} color="primary">{formatCurrency(calculateInvoiceGST())}</Typography>
+                  </Box>
+                  <Divider sx={{ my: 1 }} />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="h6">Total:</Typography>
+                    <Typography variant="h6" color="primary" fontWeight={700}>
+                      {formatCurrency(calculateInvoiceTotal())}
+                    </Typography>
+                  </Box>
+                  {selectedCustomer && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                      GST will be split as {selectedCustomer.stateCode ? 'CGST+SGST (Intra-State) or IGST (Inter-State)' : 'per state rules'} based on customer state.
+                    </Typography>
+                  )}
                 </Card>
               </Grid>
             </Grid>

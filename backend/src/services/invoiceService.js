@@ -254,7 +254,7 @@ async function getInvoices(businessId, options = {}) {
       where.filedInGstr1 = filedInGstr1 === 'true';
     }
     
-    // Get invoices with count
+    // Get invoices with count (include items for edit support)
     const [invoices, total] = await Promise.all([
       prisma.invoice.findMany({
         where,
@@ -265,12 +265,12 @@ async function getInvoices(businessId, options = {}) {
             select: {
               customerName: true,
               gstin: true,
-              customerType: true
+              customerType: true,
+              state: true,
+              stateCode: true
             }
           },
-          _count: {
-            select: { items: true }
-          }
+          items: true
         },
         orderBy: { invoiceDate: 'desc' }
       }),
@@ -374,13 +374,13 @@ async function updateInvoice(invoiceId, businessId, updateData) {
     }
     
     // If items are being updated, recalculate GST
-    if (updateData.items) {
+    if (updateData.items && updateData.items.length > 0) {
       const business = await prisma.business.findUnique({
         where: { id: businessId }
       });
       
       const customer = await prisma.customer.findFirst({
-        where: { id: existingInvoice.customerId }
+        where: { id: updateData.customerId || existingInvoice.customerId }
       });
       
       const gstCalculation = calculateInvoiceGST({
@@ -391,16 +391,30 @@ async function updateInvoice(invoiceId, businessId, updateData) {
         discountAmount: updateData.discountAmount || existingInvoice.discountAmount
       });
       
-      // Update invoice with new calculations
-      updateData.subtotal = gstCalculation.subtotal;
-      updateData.taxableAmount = gstCalculation.taxableAmount;
-      updateData.cgstAmount = gstCalculation.cgstAmount;
-      updateData.sgstAmount = gstCalculation.sgstAmount;
-      updateData.igstAmount = gstCalculation.igstAmount;
-      updateData.cessAmount = gstCalculation.cessAmount;
-      updateData.totalTaxAmount = gstCalculation.totalTaxAmount;
-      updateData.totalAmount = gstCalculation.totalAmount;
-      updateData.roundOffAmount = gstCalculation.roundOffAmount;
+      // Build clean invoice update data (only DB fields)
+      const invoiceUpdateData = {
+        invoiceDate: updateData.invoiceDate ? new Date(updateData.invoiceDate) : undefined,
+        dueDate: updateData.dueDate ? new Date(updateData.dueDate) : undefined,
+        notes: updateData.notes !== undefined ? updateData.notes : undefined,
+        subtotal: gstCalculation.subtotal,
+        taxableAmount: gstCalculation.taxableAmount,
+        cgstAmount: gstCalculation.cgstAmount,
+        sgstAmount: gstCalculation.sgstAmount,
+        igstAmount: gstCalculation.igstAmount,
+        cessAmount: gstCalculation.cessAmount,
+        totalTaxAmount: gstCalculation.totalTaxAmount,
+        totalAmount: gstCalculation.totalAmount,
+        roundOffAmount: gstCalculation.roundOffAmount,
+        // Reset PDF since amounts changed
+        pdfGenerated: false,
+        pdfFilePath: null,
+        pdfGeneratedAt: null,
+      };
+      
+      // Remove undefined fields
+      Object.keys(invoiceUpdateData).forEach(key => {
+        if (invoiceUpdateData[key] === undefined) delete invoiceUpdateData[key];
+      });
       
       // Delete old items and create new ones
       await prisma.$transaction(async (tx) => {
@@ -422,15 +436,22 @@ async function updateInvoice(invoiceId, businessId, updateData) {
         // Update invoice
         await tx.invoice.update({
           where: { id: invoiceId },
-          data: updateData
+          data: invoiceUpdateData
         });
       });
     } else {
-      // Simple update without items change
-      await prisma.invoice.update({
-        where: { id: invoiceId },
-        data: updateData
-      });
+      // Simple update without items change (only notes, dates)
+      const simpleUpdateData = {};
+      if (updateData.notes !== undefined) simpleUpdateData.notes = updateData.notes;
+      if (updateData.invoiceDate) simpleUpdateData.invoiceDate = new Date(updateData.invoiceDate);
+      if (updateData.dueDate) simpleUpdateData.dueDate = new Date(updateData.dueDate);
+      
+      if (Object.keys(simpleUpdateData).length > 0) {
+        await prisma.invoice.update({
+          where: { id: invoiceId },
+          data: simpleUpdateData
+        });
+      }
     }
     
     // Return updated invoice

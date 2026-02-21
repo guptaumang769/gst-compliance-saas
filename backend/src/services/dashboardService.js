@@ -11,8 +11,7 @@
  * - Upcoming GST filing deadlines
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/database');
 
 /**
  * Get dashboard overview for a specific month
