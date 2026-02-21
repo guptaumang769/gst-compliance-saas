@@ -145,6 +145,12 @@ export const gstrAPI = {
       : `/gstr3b/${year}/${month}/export/json`;
     return api.get(endpoint);
   },
+  updateStatus: (returnType, id, status, acknowledgeNumber) => {
+    const endpoint = returnType === 'GSTR1' 
+      ? `/gstr1/${id}/status` 
+      : `/gstr3b/${id}/status`;
+    return api.put(endpoint, { status, acknowledgeNumber });
+  },
 };
 
 // Payment API

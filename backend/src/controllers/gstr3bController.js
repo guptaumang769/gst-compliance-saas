@@ -172,9 +172,81 @@ async function exportGSTR3BJSON(req, res) {
   }
 }
 
+/**
+ * Update GSTR-3B Return status
+ * PUT /api/gstr3b/:id/status
+ */
+async function updateGSTR3BStatus(req, res) {
+  try {
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({ success: false, message: 'No active business found' });
+    }
+
+    const { id } = req.params;
+    const { status, acknowledgeNumber } = req.body;
+
+    const validStatuses = ['draft', 'generated', 'filed', 'accepted', 'rejected'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const gstReturn = await prisma.gSTReturn.findFirst({
+      where: { id, businessId: business.id, returnType: 'gstr3b' }
+    });
+
+    if (!gstReturn) {
+      return res.status(404).json({ success: false, message: 'GSTR-3B return not found' });
+    }
+
+    const allowedTransitions = {
+      draft: ['generated'],
+      generated: ['filed'],
+      filed: ['accepted', 'rejected'],
+      rejected: ['generated'],
+    };
+
+    if (allowedTransitions[gstReturn.status] && !allowedTransitions[gstReturn.status].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot transition from "${gstReturn.status}" to "${status}". Allowed: ${allowedTransitions[gstReturn.status]?.join(', ') || 'none'}`
+      });
+    }
+
+    const updateData = { status };
+    if (status === 'filed') {
+      updateData.filedAt = new Date();
+      if (acknowledgeNumber) updateData.acknowledgeNumber = acknowledgeNumber;
+    }
+
+    const updated = await prisma.gSTReturn.update({
+      where: { id },
+      data: updateData
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `GSTR-3B status updated to "${status}" successfully`,
+      data: updated
+    });
+  } catch (error) {
+    console.error('Update GSTR-3B status error:', error);
+    res.status(400).json({ success: false, message: error.message || 'Failed to update status' });
+  }
+}
+
 module.exports = {
   generateGSTR3B,
   getAllGSTR3B,
   getGSTR3B,
-  exportGSTR3BJSON
+  exportGSTR3BJSON,
+  updateGSTR3BStatus
 };
