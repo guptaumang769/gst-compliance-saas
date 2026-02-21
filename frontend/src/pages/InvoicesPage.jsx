@@ -106,6 +106,7 @@ export default function InvoicesPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(null); // track which invoice PDF is loading
+  const [formError, setFormError] = useState(''); // general form validation error
 
   useEffect(() => {
     fetchInvoices();
@@ -144,6 +145,29 @@ export default function InvoicesPage() {
     }
   };
 
+  // Helper to get nested item field error
+  const getItemError = (index, field) => {
+    const errors = formik.errors.items;
+    if (Array.isArray(errors) && errors[index] && typeof errors[index] === 'object') {
+      return errors[index][field] || '';
+    }
+    return '';
+  };
+
+  // Helper to check if item field was touched
+  const isItemTouched = (index, field) => {
+    const touched = formik.touched.items;
+    if (Array.isArray(touched) && touched[index] && typeof touched[index] === 'object') {
+      return !!touched[index][field];
+    }
+    return false;
+  };
+
+  // Show item error only when field was touched or form was submitted at least once
+  const showItemError = (index, field) => {
+    return (isItemTouched(index, field) || formik.submitCount > 0) && !!getItemError(index, field);
+  };
+
   const formik = useFormik({
     initialValues: {
       customerId: '',
@@ -166,9 +190,22 @@ export default function InvoicesPage() {
     validateOnMount: false,
     onSubmit: async (values, { setSubmitting, resetForm }) => {
       try {
+        setFormError('');
         // Extra guard: Check items length before submitting
         if (!values.items || values.items.length === 0) {
+          setFormError('At least one line item is required');
           handleApiError({ message: 'At least one line item is required' });
+          setSubmitting(false);
+          return;
+        }
+
+        // Check if any item has empty required fields
+        const hasEmptyItems = values.items.some(
+          (item) => !item.description?.trim() || !item.hsnCode?.trim() || !item.unitPrice
+        );
+        if (hasEmptyItems) {
+          setFormError('Please fill in all required fields (Description, HSN Code, Price) for each line item');
+          handleApiError({ message: 'Please fill in all required fields for each line item' });
           setSubmitting(false);
           return;
         }
@@ -193,6 +230,7 @@ export default function InvoicesPage() {
 
         handleCloseDialog();
         resetForm();
+        setFormError('');
         fetchInvoices();
       } catch (err) {
         handleApiError(err);
@@ -233,6 +271,7 @@ export default function InvoicesPage() {
     setOpenDialog(false);
     setEditingInvoice(null);
     setSelectedCustomer(null);
+    setFormError('');
     formik.resetForm();
   };
 
@@ -743,8 +782,15 @@ export default function InvoicesPage() {
                   </Button>
                 </Box>
 
+                {/* Show form-level validation error */}
+                {formError && (
+                  <Alert severity="error" sx={{ mb: 2 }} onClose={() => setFormError('')}>
+                    {formError}
+                  </Alert>
+                )}
+
                 {/* Show error if no items or item-level validation fails */}
-                {formik.touched.items && typeof formik.errors.items === 'string' && (
+                {formik.submitCount > 0 && typeof formik.errors.items === 'string' && (
                   <Alert severity="error" sx={{ mb: 2 }}>
                     {formik.errors.items}
                   </Alert>
@@ -761,6 +807,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.description`, e.target.value)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.description`, true)}
+                          error={showItemError(index, 'description')}
+                          helperText={showItemError(index, 'description') ? getItemError(index, 'description') : ''}
                           size="small"
                         />
                       </Grid>
@@ -773,6 +822,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.hsnCode`, e.target.value)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.hsnCode`, true)}
+                          error={showItemError(index, 'hsnCode')}
+                          helperText={showItemError(index, 'hsnCode') ? getItemError(index, 'hsnCode') : ''}
                           size="small"
                         />
                       </Grid>
@@ -786,6 +838,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.quantity`, parseFloat(e.target.value) || 0)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.quantity`, true)}
+                          error={showItemError(index, 'quantity')}
+                          helperText={showItemError(index, 'quantity') ? getItemError(index, 'quantity') : ''}
                           size="small"
                           inputProps={{ min: 1 }}
                         />
@@ -800,6 +855,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.unitPrice`, parseFloat(e.target.value) || 0)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.unitPrice`, true)}
+                          error={showItemError(index, 'unitPrice')}
+                          helperText={showItemError(index, 'unitPrice') ? getItemError(index, 'unitPrice') : ''}
                           size="small"
                           inputProps={{ min: 0 }}
                         />
@@ -814,6 +872,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.discount`, parseFloat(e.target.value) || 0)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.discount`, true)}
+                          error={showItemError(index, 'discount')}
+                          helperText={showItemError(index, 'discount') ? getItemError(index, 'discount') : ''}
                           size="small"
                           inputProps={{ min: 0, max: 100 }}
                         />
@@ -828,6 +889,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.gstRate`, parseFloat(e.target.value) || 0)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.gstRate`, true)}
+                          error={showItemError(index, 'gstRate')}
+                          helperText={showItemError(index, 'gstRate') ? getItemError(index, 'gstRate') : ''}
                           size="small"
                           inputProps={{ min: 0, max: 100 }}
                         />
@@ -842,6 +906,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.cessRate`, parseFloat(e.target.value) || 0)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.cessRate`, true)}
+                          error={showItemError(index, 'cessRate')}
+                          helperText={showItemError(index, 'cessRate') ? getItemError(index, 'cessRate') : ''}
                           size="small"
                           inputProps={{ min: 0, max: 100 }}
                         />
@@ -920,6 +987,29 @@ export default function InvoicesPage() {
               variant="contained"
               disabled={formik.isSubmitting}
               className="gradient-button-primary"
+              onClick={() => {
+                // When the user clicks submit, Formik's handleSubmit validates the form.
+                // If there are validation errors, onSubmit is never called, so we show
+                // a toast after a short delay if the form is still invalid.
+                setTimeout(() => {
+                  if (formik.errors && Object.keys(formik.errors).length > 0) {
+                    // Build a human-readable error message
+                    const errorMessages = [];
+                    if (formik.errors.customerId) errorMessages.push('Customer is required');
+                    if (formik.errors.invoiceDate) errorMessages.push(formik.errors.invoiceDate);
+                    if (typeof formik.errors.items === 'string') {
+                      errorMessages.push(formik.errors.items);
+                    } else if (Array.isArray(formik.errors.items)) {
+                      errorMessages.push('Please fill in all required fields for each line item');
+                    }
+                    const msg = errorMessages.length > 0
+                      ? errorMessages.join('. ')
+                      : 'Please fix the errors in the form before submitting';
+                    setFormError(msg);
+                    handleApiError({ message: msg });
+                  }
+                }, 100);
+              }}
             >
               {formik.isSubmitting ? 'Saving...' : editingInvoice ? 'Update' : 'Create'}
             </Button>

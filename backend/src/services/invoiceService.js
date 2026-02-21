@@ -40,6 +40,24 @@ async function createInvoice(businessId, invoiceData) {
       throw new Error('Missing required fields: customerId, invoiceDate, items');
     }
     
+    // Validate each item has required fields
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const itemNum = i + 1;
+      if (!item.description && !item.itemName) {
+        throw new Error(`Item ${itemNum}: Description is required`);
+      }
+      if (!item.hsnCode) {
+        throw new Error(`Item ${itemNum}: HSN Code is required`);
+      }
+      if (!item.quantity || item.quantity < 1) {
+        throw new Error(`Item ${itemNum}: Quantity must be at least 1`);
+      }
+      if (item.unitPrice === undefined || item.unitPrice === null || item.unitPrice < 0) {
+        throw new Error(`Item ${itemNum}: Unit price is required and must be non-negative`);
+      }
+    }
+    
     // Validate invoice date is not in the future
     const invoiceDateObj = new Date(invoiceDate);
     const today = new Date();
