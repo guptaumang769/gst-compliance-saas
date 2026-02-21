@@ -143,7 +143,7 @@ export const gstrAPI = {
     const endpoint = returnType === 'GSTR1' 
       ? `/gstr1/${year}/${month}/export/json` 
       : `/gstr3b/${year}/${month}/export/json`;
-    return api.get(endpoint, { responseType: 'blob' });
+    return api.get(endpoint);
   },
 };
 
