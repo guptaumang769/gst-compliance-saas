@@ -47,6 +47,9 @@ router.get('/:id/download-pdf', invoiceController.downloadInvoicePDF);
 // POST /api/invoices/:id/send-email - Send invoice via email
 router.post('/:id/send-email', invoiceController.sendInvoiceEmail);
 
+// PATCH /api/invoices/:id/mark-filed - Mark invoice as filed in GSTR-1
+router.patch('/:id/mark-filed', invoiceController.markAsFiled);
+
 // POST /api/invoices/test-email - Test email configuration
 router.post('/test-email', invoiceController.testEmailConfig);
 

@@ -368,7 +368,26 @@ async function changePassword(userId, oldPassword, newPassword) {
  */
 async function updateProfile(userId, profileData) {
   try {
-    const { phone, businessName, addressLine1, addressLine2, city, state, pincode, businessType, businessEmail } = profileData;
+    const { phone, businessName, addressLine1, addressLine2, city, state, pincode, businessType, businessEmail, userEmail } = profileData;
+
+    // If updating the user's login email
+    if (userEmail) {
+      // Check if the new email is already taken by another user
+      const existingUser = await prisma.user.findFirst({
+        where: { email: userEmail, id: { not: userId } }
+      });
+      if (existingUser) {
+        throw new Error('This email is already used by another account');
+      }
+      await prisma.user.update({
+        where: { id: userId },
+        data: { email: userEmail }
+      });
+      return {
+        success: true,
+        message: 'User email updated successfully',
+      };
+    }
 
     // Find the user's active business
     const business = await prisma.business.findFirst({

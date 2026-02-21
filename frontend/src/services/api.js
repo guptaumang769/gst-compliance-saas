@@ -64,6 +64,7 @@ export const invoiceAPI = {
   generatePDF: (id) => api.post(`/invoices/${id}/generate-pdf`),
   downloadPDF: (id) => api.get(`/invoices/${id}/download-pdf`, { responseType: 'blob' }),
   sendEmail: (id, data) => api.post(`/invoices/${id}/send-email`, data),
+  markAsFiled: (id, data) => api.patch(`/invoices/${id}/mark-filed`, data),
 };
 
 // Supplier API

@@ -44,6 +44,7 @@ import {
   AddCircleOutline,
   RemoveCircleOutline,
   InfoOutlined,
+  Gavel,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -66,7 +67,9 @@ const lineItemSchema = Yup.object({
 // Invoice Schema
 const invoiceSchema = Yup.object({
   customerId: Yup.string().required('Customer is required'),
-  invoiceDate: Yup.date().required('Invoice date is required'),
+  invoiceDate: Yup.date()
+    .required('Invoice date is required')
+    .max(new Date(), 'Invoice date cannot be in the future'),
   dueDate: Yup.date().min(Yup.ref('invoiceDate'), 'Due date must be after invoice date').nullable(),
   items: Yup.array().of(lineItemSchema).min(1, 'At least one item is required'),
 });
@@ -160,8 +163,16 @@ export default function InvoicesPage() {
       ],
     },
     validationSchema: invoiceSchema,
+    validateOnMount: false,
     onSubmit: async (values, { setSubmitting, resetForm }) => {
       try {
+        // Extra guard: Check items length before submitting
+        if (!values.items || values.items.length === 0) {
+          handleApiError({ message: 'At least one line item is required' });
+          setSubmitting(false);
+          return;
+        }
+
         const invoiceData = {
           ...values,
           items: values.items.map(item => ({
@@ -269,13 +280,32 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleSendEmail = async (e, invoiceId) => {
+  const handleSendEmail = async (e, invoice) => {
     e.stopPropagation();
     try {
-      await invoiceAPI.sendEmail(invoiceId);
+      // Send to customer's email if available
+      const customerEmail = invoice.customer?.email;
+      await invoiceAPI.sendEmail(invoice.id, {
+        to: customerEmail,
+        subject: `Invoice ${invoice.invoiceNumber}`,
+        message: `Please find attached invoice ${invoice.invoiceNumber}.`,
+      });
       handleSuccess('Invoice sent via email successfully');
+      fetchInvoices();
     } catch (err) {
       handleApiError(err, 'Failed to send email');
+    }
+  };
+
+  const handleMarkAsFiled = async (e, invoice) => {
+    e.stopPropagation();
+    try {
+      const newFiledStatus = !invoice.filedInGstr1;
+      await invoiceAPI.markAsFiled(invoice.id, { filed: newFiledStatus });
+      handleSuccess(newFiledStatus ? 'Invoice marked as filed in GSTR-1' : 'Invoice unfiled from GSTR-1');
+      fetchInvoices();
+    } catch (err) {
+      handleApiError(err, 'Failed to update filing status');
     }
   };
 
@@ -509,7 +539,7 @@ export default function InvoicesPage() {
                             />
                           </TableCell>
                           <TableCell>
-                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                               <Tooltip title="Download PDF">
                                 <IconButton
                                   size="small"
@@ -520,24 +550,46 @@ export default function InvoicesPage() {
                                   <PictureAsPdf fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Edit">
+                              <Tooltip title="Send via Email">
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleOpenDialog(invoice)}
-                                  color="primary"
+                                  onClick={(e) => handleSendEmail(e, invoice)}
+                                  color="secondary"
                                 >
-                                  <Edit fontSize="small" />
+                                  <Email fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Delete">
+                              <Tooltip title={invoice.filedInGstr1 ? 'Unmark Filed' : 'Mark as Filed in GSTR-1'}>
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleOpenDeleteDialog(invoice)}
-                                  color="error"
+                                  onClick={(e) => handleMarkAsFiled(e, invoice)}
+                                  color={invoice.filedInGstr1 ? 'success' : 'default'}
                                 >
-                                  <Delete fontSize="small" />
+                                  <Gavel fontSize="small" />
                                 </IconButton>
                               </Tooltip>
+                              {!invoice.filedInGstr1 && (
+                                <>
+                                  <Tooltip title="Edit">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleOpenDialog(invoice)}
+                                      color="primary"
+                                    >
+                                      <Edit fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleOpenDeleteDialog(invoice)}
+                                      color="error"
+                                    >
+                                      <Delete fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </>
+                              )}
                             </Box>
                           </TableCell>
                         </TableRow>
@@ -639,6 +691,7 @@ export default function InvoicesPage() {
                   error={formik.touched.invoiceDate && Boolean(formik.errors.invoiceDate)}
                   helperText={formik.touched.invoiceDate && formik.errors.invoiceDate}
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{ max: new Date().toISOString().split('T')[0] }}
                 />
               </Grid>
 
@@ -689,6 +742,13 @@ export default function InvoicesPage() {
                     Add Item
                   </Button>
                 </Box>
+
+                {/* Show error if no items or item-level validation fails */}
+                {formik.touched.items && typeof formik.errors.items === 'string' && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {formik.errors.items}
+                  </Alert>
+                )}
 
                 {formik.values.items.map((item, index) => (
                   <Paper key={index} sx={{ p: 2, mb: 2 }} variant="outlined">

@@ -473,6 +473,52 @@ async function verifyEmailConfig(req, res) {
   }
 }
 
+/**
+ * PATCH /api/invoices/:id/mark-filed
+ * Mark an invoice as filed in GSTR-1
+ */
+async function markAsFiled(req, res) {
+  try {
+    const userId = req.user.userId;
+    const invoiceId = req.params.id;
+    const { filed = true, filingMonth } = req.body;
+    
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({ success: false, error: 'No active business found' });
+    }
+    
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: invoiceId, businessId: business.id, isActive: true }
+    });
+    
+    if (!invoice) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+    
+    const updatedInvoice = await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        filedInGstr1: filed,
+        gstr1FilingMonth: filingMonth || new Date().toISOString().slice(0, 7),
+      }
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: filed ? 'Invoice marked as filed in GSTR-1' : 'Invoice unfiled from GSTR-1',
+      invoice: updatedInvoice
+    });
+  } catch (error) {
+    console.error('Mark as filed error:', error);
+    return res.status(400).json({ success: false, error: error.message || 'Failed to update filing status' });
+  }
+}
+
 module.exports = {
   createInvoice,
   getInvoices,
@@ -484,5 +530,6 @@ module.exports = {
   downloadInvoicePDF,
   sendInvoiceEmail,
   testEmailConfig,
-  verifyEmailConfig
+  verifyEmailConfig,
+  markAsFiled
 };

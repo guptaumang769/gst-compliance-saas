@@ -40,6 +40,14 @@ async function createInvoice(businessId, invoiceData) {
       throw new Error('Missing required fields: customerId, invoiceDate, items');
     }
     
+    // Validate invoice date is not in the future
+    const invoiceDateObj = new Date(invoiceDate);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Allow same-day invoices
+    if (invoiceDateObj > today) {
+      throw new Error('Invoice date cannot be in the future');
+    }
+    
     // Get business details
     const business = await prisma.business.findUnique({
       where: { id: businessId }

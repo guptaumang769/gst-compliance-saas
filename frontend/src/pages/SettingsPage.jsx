@@ -21,6 +21,7 @@ import {
   Security,
   Notifications,
   Save,
+  Person,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -38,6 +39,11 @@ const businessSchema = Yup.object({
   addressLine1: Yup.string().required('Address is required'),
   city: Yup.string().required('City is required'),
   pincode: Yup.string().required('Pincode is required'),
+});
+
+// User Profile Schema
+const userProfileSchema = Yup.object({
+  email: Yup.string().email('Invalid email address').required('Email is required'),
 });
 
 // Password Schema
@@ -104,6 +110,26 @@ export default function SettingsPage() {
     },
   });
 
+  const userFormik = useFormik({
+    initialValues: {
+      email: '',
+    },
+    validationSchema: userProfileSchema,
+    enableReinitialize: true,
+    onSubmit: async (values, { setSubmitting }) => {
+      try {
+        await authAPI.updateProfile({
+          userEmail: values.email,
+        });
+        handleSuccess('User profile updated successfully');
+      } catch (err) {
+        handleApiError(err, 'Failed to update user profile');
+      } finally {
+        setSubmitting(false);
+      }
+    },
+  });
+
   const passwordFormik = useFormik({
     initialValues: {
       currentPassword: '',
@@ -140,6 +166,11 @@ export default function SettingsPage() {
       const response = await authAPI.getProfile();
       const userData = response.data?.user || response.data;
       const business = userData?.businesses?.[0] || {};
+
+      // Populate user profile form
+      userFormik.setValues({
+        email: userData?.email || '',
+      });
 
       // Populate business form
       businessFormik.setValues({
@@ -212,6 +243,7 @@ export default function SettingsPage() {
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
           <Tab icon={<Business />} label="Business Profile" iconPosition="start" />
+          <Tab icon={<Person />} label="User Profile" iconPosition="start" />
           <Tab icon={<Security />} label="Change Password" iconPosition="start" />
           <Tab icon={<Notifications />} label="Notifications" iconPosition="start" />
         </Tabs>
@@ -415,8 +447,56 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* Change Password Tab */}
+      {/* User Profile Tab */}
       {currentTab === 1 && (
+        <Card>
+          <CardContent>
+            <form onSubmit={userFormik.handleSubmit}>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom>
+                    User Profile
+                  </Typography>
+                  <Divider sx={{ mb: 3 }} />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    id="userEmail"
+                    name="email"
+                    label="Login Email *"
+                    type="email"
+                    value={userFormik.values.email}
+                    onChange={userFormik.handleChange}
+                    onBlur={userFormik.handleBlur}
+                    error={userFormik.touched.email && Boolean(userFormik.errors.email)}
+                    helperText={userFormik.touched.email && userFormik.errors.email}
+                  />
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    This is the email you use to log in. Changing it will require you to use the new email for future logins. Your phone number is stored under Business Profile.
+                  </Alert>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    startIcon={<Save />}
+                    disabled={userFormik.isSubmitting}
+                    className="gradient-button-primary"
+                  >
+                    {userFormik.isSubmitting ? 'Saving...' : 'Update Email'}
+                  </Button>
+                </Grid>
+              </Grid>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Change Password Tab */}
+      {currentTab === 2 && (
         <Card>
           <CardContent>
             <form onSubmit={passwordFormik.handleSubmit}>
@@ -499,7 +579,7 @@ export default function SettingsPage() {
       )}
 
       {/* Notifications Tab */}
-      {currentTab === 2 && (
+      {currentTab === 3 && (
         <Card>
           <CardContent>
             <Grid container spacing={3}>

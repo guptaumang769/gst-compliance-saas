@@ -57,6 +57,7 @@ export const INVOICE_STATUS = {
   DRAFT: 'Draft',
   FILED: 'Filed',
   GENERATED: 'Generated',
+  SENT: 'Sent',
 };
 
 // Invoice Status Colors
@@ -67,6 +68,7 @@ export const INVOICE_STATUS_COLORS = {
   [INVOICE_STATUS.DRAFT]: 'default',
   [INVOICE_STATUS.FILED]: 'info',
   [INVOICE_STATUS.GENERATED]: 'primary',
+  [INVOICE_STATUS.SENT]: 'secondary',
 };
 
 // Navigation Items

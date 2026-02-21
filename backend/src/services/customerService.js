@@ -11,7 +11,7 @@
  */
 
 const prisma = require('../config/database');
-const { validateGSTIN, extractStateCode } = require('../utils/gstValidation');
+const { validateGSTIN, extractStateCode, validateGSTINPANMatch, validateGSTINStateMatch } = require('../utils/gstValidation');
 
 /**
  * Create a new customer
@@ -77,12 +77,36 @@ async function createCustomer(businessId, customerData) {
       if (existingCustomer) {
         throw new Error('Customer with this GSTIN already exists');
       }
+      
+      // ✅ Validate GSTIN state code matches selected state
+      const stateMatch = validateGSTINStateMatch(gstin, state);
+      if (!stateMatch.valid) {
+        throw new Error(stateMatch.message);
+      }
+      
+      // ✅ Validate PAN embedded in GSTIN matches entered PAN
+      if (pan) {
+        const panMatch = validateGSTINPANMatch(gstin, pan);
+        if (!panMatch.valid) {
+          throw new Error(panMatch.message);
+        }
+      }
     }
     
     // Export customers don't need GSTIN
     if (customerType === 'export') {
       // For export, state can be "Export" or specific country
       stateCode = '96'; // Export state code
+    }
+    
+    // ✅ Check for duplicate PAN within the same business
+    if (pan) {
+      const existingPan = await prisma.customer.findFirst({
+        where: { businessId, pan, isActive: true }
+      });
+      if (existingPan) {
+        throw new Error(`Another customer with PAN ${pan} already exists`);
+      }
     }
     
     // Check for duplicate phone number within the same business
@@ -278,6 +302,35 @@ async function updateCustomer(customerId, businessId, updateData) {
       
       // Update state code if GSTIN changed
       stateCode = extractStateCode(updateData.gstin);
+    }
+    
+    // ✅ Validate GSTIN state code matches selected state
+    const effectiveGstin = updateData.gstin || existingCustomer.gstin;
+    const effectiveState = updateData.state || existingCustomer.state;
+    if (effectiveGstin && effectiveState) {
+      const stateMatch = validateGSTINStateMatch(effectiveGstin, effectiveState);
+      if (!stateMatch.valid) {
+        throw new Error(stateMatch.message);
+      }
+    }
+    
+    // ✅ Validate PAN embedded in GSTIN matches entered PAN
+    const effectivePan = updateData.pan || existingCustomer.pan;
+    if (effectiveGstin && effectivePan) {
+      const panMatch = validateGSTINPANMatch(effectiveGstin, effectivePan);
+      if (!panMatch.valid) {
+        throw new Error(panMatch.message);
+      }
+    }
+    
+    // ✅ Check for duplicate PAN within the same business (excluding current customer)
+    if (updateData.pan && updateData.pan !== existingCustomer.pan) {
+      const existingPanCustomer = await prisma.customer.findFirst({
+        where: { businessId, pan: updateData.pan, isActive: true, id: { not: customerId } }
+      });
+      if (existingPanCustomer) {
+        throw new Error(`Another customer with PAN ${updateData.pan} already exists`);
+      }
     }
     
     // Check for duplicate phone number within the same business (excluding current customer)

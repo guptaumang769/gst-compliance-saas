@@ -222,10 +222,10 @@ async function changePassword(req, res) {
 async function updateProfile(req, res) {
   try {
     const userId = req.user.userId;
-    const { phone, businessName, addressLine1, addressLine2, city, state, pincode, businessType, email: businessEmail } = req.body;
+    const { phone, businessName, addressLine1, addressLine2, city, state, pincode, businessType, email: businessEmail, userEmail } = req.body;
 
     const result = await authService.updateProfile(userId, {
-      phone, businessName, addressLine1, addressLine2, city, state, pincode, businessType, businessEmail
+      phone, businessName, addressLine1, addressLine2, city, state, pincode, businessType, businessEmail, userEmail
     });
 
     return res.status(200).json(result);

@@ -252,12 +252,107 @@ function validateGSTRate(rate) {
   };
 }
 
+/**
+ * Get state code from state name
+ * @param {string} stateName - State name (e.g., 'Maharashtra')
+ * @returns {string|null} - 2-digit state code or null
+ */
+function getStateCode(stateName) {
+  const stateNameToCode = {
+    'Jammu and Kashmir': '01',
+    'Himachal Pradesh': '02',
+    'Punjab': '03',
+    'Chandigarh': '04',
+    'Uttarakhand': '05',
+    'Haryana': '06',
+    'Delhi': '07',
+    'Rajasthan': '08',
+    'Uttar Pradesh': '09',
+    'Bihar': '10',
+    'Sikkim': '11',
+    'Arunachal Pradesh': '12',
+    'Nagaland': '13',
+    'Manipur': '14',
+    'Mizoram': '15',
+    'Tripura': '16',
+    'Meghalaya': '17',
+    'Assam': '18',
+    'West Bengal': '19',
+    'Jharkhand': '20',
+    'Odisha': '21',
+    'Chhattisgarh': '22',
+    'Madhya Pradesh': '23',
+    'Gujarat': '24',
+    'Daman and Diu': '25',
+    'Dadra and Nagar Haveli': '26',
+    'Dadra and Nagar Haveli and Daman and Diu': '26',
+    'Maharashtra': '27',
+    'Andhra Pradesh': '37',
+    'Karnataka': '29',
+    'Goa': '30',
+    'Lakshadweep': '31',
+    'Kerala': '32',
+    'Tamil Nadu': '33',
+    'Puducherry': '34',
+    'Andaman and Nicobar Islands': '35',
+    'Telangana': '36',
+    'Ladakh': '38',
+    'Other Territory': '97',
+    'Centre Jurisdiction': '99',
+  };
+  return stateNameToCode[stateName] || null;
+}
+
+/**
+ * Validate that GSTIN's embedded PAN matches the provided PAN
+ * @param {string} gstin - GSTIN
+ * @param {string} pan - PAN
+ * @returns {object} - { valid: boolean, message: string }
+ */
+function validateGSTINPANMatch(gstin, pan) {
+  if (!gstin || !pan) return { valid: true, message: 'Skipped (missing GSTIN or PAN)' };
+
+  const panFromGSTIN = extractPAN(gstin);
+  if (panFromGSTIN && panFromGSTIN.toUpperCase() !== pan.toUpperCase()) {
+    return {
+      valid: false,
+      message: `PAN mismatch: GSTIN contains PAN "${panFromGSTIN}" but you entered "${pan.toUpperCase()}"`
+    };
+  }
+  return { valid: true, message: 'PAN matches GSTIN' };
+}
+
+/**
+ * Validate that GSTIN state code matches the selected state
+ * @param {string} gstin - GSTIN
+ * @param {string} stateName - Selected state name
+ * @returns {object} - { valid: boolean, message: string }
+ */
+function validateGSTINStateMatch(gstin, stateName) {
+  if (!gstin || !stateName) return { valid: true, message: 'Skipped' };
+
+  const gstinStateCode = extractStateCode(gstin);
+  const expectedStateCode = getStateCode(stateName);
+  const gstinStateName = getStateName(gstinStateCode);
+
+  if (expectedStateCode && gstinStateCode !== expectedStateCode) {
+    return {
+      valid: false,
+      message: `State mismatch: GSTIN state code "${gstinStateCode}" belongs to "${gstinStateName}" but you selected "${stateName}" (code: ${expectedStateCode})`
+    };
+  }
+  return { valid: true, message: 'State matches GSTIN' };
+}
+
 module.exports = {
   validateGSTIN,
   validatePAN,
   extractStateCode,
   extractPAN,
   getStateName,
+  getStateCode,
   validateHSNSAC,
-  validateGSTRate
+  validateGSTRate,
+  validateGSTINPANMatch,
+  validateGSTINStateMatch
 };

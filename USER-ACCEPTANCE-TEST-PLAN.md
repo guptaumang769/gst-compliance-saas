@@ -483,35 +483,44 @@ Net Tax Payable = 50,000 - 15,000 = 35,000
 ### **All Members: Settings Testing (1 hour each)**
 
 #### **Test Case 4.1: Business Profile Update**
-1. Navigate to **Settings** → **Business Profile**
-2. Update:
+1. Navigate to **Settings** → **Business Profile** tab
+2. Verify GSTIN and PAN are read-only (cannot be changed)
+3. Update:
    - Business Name
-   - Phone Number
-   - Email
-3. Click **"Save Changes"**
-4. **Expected:** Changes saved (Note: May not work yet - report as bug if fails)
+   - Business Phone Number
+   - Business Email
+   - Address, City, State, Pincode
+4. Click **"Save Changes"**
+5. **Expected:** Success message, changes persist after page refresh
 
 #### **Test Case 4.2: User Profile Update**
-1. Go to **User Profile** tab
-2. Update email/phone
-3. **Expected:** Profile updated
+1. Go to **Settings** → **User Profile** tab
+2. Verify your login email is pre-populated
+3. Update email
+4. Click **"Update Email"**
+5. **Expected:** Email updated, able to login with new email
 
 #### **Test Case 4.3: Password Change**
-1. Go to **Security** tab
+1. Go to **Settings** → **Change Password** tab
 2. Try changing password:
    ```
    Current Password: [your current password]
    New Password: NewTest@123456
    Confirm Password: NewTest@123456
    ```
-3. **Expected:** Password changed, able to login with new password
+3. **Expected:** Password changed, able to login with new password (old password should NOT work)
 
 #### **Test Case 4.4: Notification Settings**
-1. Go to **Notifications** tab
+1. Go to **Settings** → **Notifications** tab
 2. Toggle notification switches
 3. **Expected:** Preferences saved
 
-**✅ Pass Criteria:** Settings work or bugs properly documented
+#### **Test Case 4.4b: Profile Page (Read-Only)**
+1. Click user icon → **Profile**
+2. **Expected:** Read-only page showing user details and business info
+3. Verify it's separate from Settings page
+
+**✅ Pass Criteria:** All settings tabs work, business profile populated on load
 
 ---
 
@@ -523,33 +532,46 @@ Try these deliberately wrong inputs:
 
 1. **Duplicate GSTIN:**
    - Create two customers with same GSTIN
-   - **Expected:** Error message
+   - **Expected:** Error message: "Customer with this GSTIN already exists"
 
-2. **Invalid Date:**
-   - Create invoice with future date (next year)
-   - **Expected:** Warning or error
+2. **Duplicate PAN:**
+   - Create two customers with same PAN
+   - **Expected:** Error message: "Another customer with PAN XXXXX already exists"
 
-3. **Negative Quantity:**
+3. **Future Invoice Date:**
+   - Create invoice with future date (next week / next year)
+   - **Expected:** Error message: "Invoice date cannot be in the future"
+   - Date picker should not allow selecting future dates
+
+4. **Negative Quantity:**
    - Try quantity = -5
-   - **Expected:** Validation error
+   - **Expected:** Validation error (min 1)
 
-4. **Negative Price:**
+5. **Negative Price:**
    - Try price = -1000
-   - **Expected:** Validation error
+   - **Expected:** Validation error (min 0)
 
-5. **GST Rate > 100%:**
+6. **GST Rate > 100%:**
    - Try GST rate = 150%
-   - **Expected:** Validation error
+   - **Expected:** Validation error (max 100)
 
-6. **Empty Invoice:**
-   - Try creating invoice with no line items
-   - **Expected:** Error message
+7. **Empty Invoice:**
+   - Try creating invoice with no line items (remove all items)
+   - **Expected:** Error alert: "At least one item is required"
 
-7. **Past Month Return:**
+8. **Past Month Return:**
    - Try generating return for a month with no data
    - **Expected:** Appropriate message
 
-**✅ Pass Criteria:** System handles all edge cases gracefully
+9. **Duplicate Supplier Phone:**
+   - Create two suppliers with the same phone number
+   - **Expected:** Error message about duplicate phone
+
+10. **Duplicate Customer Phone:**
+    - Create two customers with the same phone number
+    - **Expected:** Error message about duplicate phone
+
+**✅ Pass Criteria:** System handles all edge cases gracefully with clear error messages
 
 ---
 
@@ -561,26 +583,53 @@ Try these deliberately wrong inputs:
 3. Try invalid HSN codes
 4. **Expected:** Proper validation (if implemented)
 
-#### **Test Case 4.7: State Code in GSTIN**
-1. Create customer with GSTIN starting with "27" (Maharashtra)
+#### **Test Case 4.7: GSTIN State Code vs Selected State Mismatch**
+1. Create customer with GSTIN starting with "09" (Uttar Pradesh)
 2. Set state as "Karnataka"
-3. **Expected:** Should show warning (state code mismatch)
+3. **Expected:** Error: "State mismatch: GSTIN state code 09 belongs to Uttar Pradesh but you selected Karnataka"
 
-#### **Test Case 4.8: PAN in GSTIN**
-1. Verify PAN from GSTIN matches PAN field
-2. Example: GSTIN `27AABCT1332L1ZM` should have PAN `AABCT1332L`
-3. **Expected:** System validates or warns
+#### **Test Case 4.8: PAN in GSTIN Mismatch**
+1. Create customer with GSTIN `27AABCT1332L1ZM` (PAN = `AABCT1332L`)
+2. Enter PAN as `AABCT1332Q` (different last character)
+3. **Expected:** Error: "PAN mismatch: GSTIN contains PAN AABCT1332L but you entered AABCT1332Q"
+
+#### **Test Case 4.8b: PAN in GSTIN Match (Happy Path)**
+1. Create customer with GSTIN `27AABCT1332L1ZM`
+2. Enter PAN as `AABCT1332L`
+3. **Expected:** Customer created successfully
 
 #### **Test Case 4.9: Reverse Charge Mechanism**
 1. Create purchase from unregistered supplier
-2. Check if RCM is mentioned/calculated
-3. **Expected:** Proper RCM handling (if implemented)
+2. Check if RCM warning is shown
+3. **Expected:** Warning message displayed for unregistered supplier purchases
 
-**✅ Pass Criteria:** GST compliance rules followed
+**✅ Pass Criteria:** GST compliance rules followed, all validations trigger correctly
 
 ---
 
 ### **Data Engineer: Performance & Stress Testing (2 hours)**
+
+#### **Test Case 4.9b: Invoice Actions (Send Email & Mark as Filed)**
+1. Create an invoice and download PDF → status changes to "Generated"
+2. Click **Email icon** on the invoice → sends invoice via email → status changes to "Sent"
+3. Click **Gavel icon** on the invoice → marks as filed in GSTR-1 → status changes to "Filed"
+4. Verify that **Edit** and **Delete** buttons are hidden once invoice is filed
+5. Click **Gavel icon** again → unmarks from filed → Edit/Delete reappear
+6. **Expected:** All status transitions work, filed invoices cannot be edited/deleted
+
+#### **Test Case 4.9c: Invoice Search & Filter**
+1. Use search bar to search by invoice number
+2. Use search bar to search by customer name
+3. Filter by status: Draft, Generated, Sent, Filed
+4. **Expected:** All search and filter combinations return correct results
+
+#### **Test Case 4.9d: Purchase Search & Filter**
+1. Use search bar to search by supplier name
+2. Use search bar to search by supplier invoice number
+3. Filter by status: Pending, Paid
+4. **Expected:** All search and filter combinations return correct results
+
+---
 
 #### **Test Case 4.10: Pagination Testing**
 1. Create 50+ invoices
@@ -785,13 +834,19 @@ Create a Google Sheet with these columns:
 - [ ] ITC calculated properly
 - [ ] No data loss
 - [ ] CGST/SGST/IGST logic correct (intra-state vs inter-state)
+- [ ] GSTIN state code matches selected state (validation)
+- [ ] PAN embedded in GSTIN matches entered PAN (validation)
+- [ ] Future-dated invoices are blocked
 
 ### **Should Pass (Important):**
-- [ ] All CRUD operations work
-- [ ] Search and filters work
-- [ ] Pagination works
-- [ ] Validations work
-- [ ] Settings work
+- [ ] All CRUD operations work (Customers, Suppliers, Invoices, Purchases)
+- [ ] Search and filters work (Invoices, Purchases, Customers)
+- [ ] Pagination works on all list pages
+- [ ] All field validations work (GSTIN, PAN, phone, pincode, email)
+- [ ] Settings work (Business Profile, User Profile, Change Password)
+- [ ] Duplicate PAN, phone, GSTIN checks work
+- [ ] Invoice actions (PDF, Send Email, Mark as Filed) work
+- [ ] Invoice status lifecycle: Draft → Generated → Sent → Filed
 
 ### **Nice to Have:**
 - [ ] Fast performance
@@ -799,6 +854,7 @@ Create a Google Sheet with these columns:
 - [ ] Mobile responsive
 - [ ] PDF download works
 - [ ] Email sending works
+- [ ] Notification settings work
 
 ---
 
@@ -823,7 +879,7 @@ Create a Google Sheet with these columns:
 
 ### **Before Declaring Testing Complete:**
 
-- [ ] All 70+ test cases executed
+- [ ] All 80+ test cases executed
 - [ ] All critical bugs fixed
 - [ ] All workflows tested end-to-end
 - [ ] GST calculations verified by CA
@@ -844,7 +900,7 @@ Date: [Date]
 Testing Duration: [X days]
 
 STATISTICS:
-- Total Test Cases: 70+
+- Total Test Cases: 80+
 - Test Cases Passed: __
 - Test Cases Failed: __
 - Pass Rate: __%
@@ -919,9 +975,9 @@ STATUS: [ ] APPROVED FOR PRODUCTION  [ ] NEEDS MORE WORK
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** January 30, 2026  
-**Next Review:** After Day 3 of testing
+**Document Version:** 2.0  
+**Last Updated:** February 21, 2026  
+**Next Review:** After Day 5 of testing
 
 ---
 
