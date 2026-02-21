@@ -305,6 +305,69 @@ async function calculateItcForPeriod(req, res) {
   }
 }
 
+/**
+ * Mark a purchase as paid
+ * PATCH /api/purchases/:id/mark-paid
+ */
+async function markPurchaseAsPaid(req, res) {
+  try {
+    const userId = req.user.userId;
+    
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+    
+    if (!business) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active business found'
+      });
+    }
+
+    const businessId = business.id;
+    const purchaseId = req.params.id;
+    const { isPaid, paymentMethod } = req.body;
+
+    // Verify purchase belongs to business
+    const purchase = await prisma.purchase.findFirst({
+      where: { id: purchaseId, businessId, isActive: true }
+    });
+
+    if (!purchase) {
+      return res.status(404).json({
+        success: false,
+        message: 'Purchase not found'
+      });
+    }
+
+    const updatedPurchase = await prisma.purchase.update({
+      where: { id: purchaseId },
+      data: {
+        isPaid: isPaid !== undefined ? isPaid : true,
+        paymentDate: isPaid !== false ? new Date() : null,
+        paymentMethod: paymentMethod || 'bank_transfer'
+      },
+      include: {
+        items: true,
+        supplier: true
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: isPaid !== false ? 'Purchase marked as paid' : 'Purchase marked as unpaid',
+      data: updatedPurchase
+    });
+  } catch (error) {
+    console.error('Mark purchase as paid error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update payment status'
+    });
+  }
+}
+
 module.exports = {
   createPurchase,
   getPurchases,
@@ -312,5 +375,6 @@ module.exports = {
   updatePurchase,
   deletePurchase,
   getPurchaseStats,
-  calculateItcForPeriod
+  calculateItcForPeriod,
+  markPurchaseAsPaid
 };
