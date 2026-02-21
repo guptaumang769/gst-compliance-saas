@@ -168,7 +168,8 @@ function calculateInvoiceGST(params) {
     throw new Error('Invoice must have at least one item');
   }
   
-  let subtotal = 0;
+  let subtotal = 0;          // Sum of qty * price (before any discounts)
+  let totalItemDiscount = 0;  // Sum of all item-level discounts
   let totalCgst = 0;
   let totalSgst = 0;
   let totalIgst = 0;
@@ -183,7 +184,7 @@ function calculateInvoiceGST(params) {
     
     // Apply item-level discount if any (support both percentage and absolute amount)
     const itemDiscountPercent = parseFloat(item.discount || item.discountPercent || 0);
-    const itemDiscountAmount = item.discountAmount || (itemSubtotal * itemDiscountPercent / 100);
+    const itemDiscountAmount = item.discountAmount ? parseFloat(item.discountAmount) : (itemSubtotal * itemDiscountPercent / 100);
     const itemTaxableAmount = itemSubtotal - itemDiscountAmount;
     
     // Calculate GST for this item
@@ -198,6 +199,7 @@ function calculateInvoiceGST(params) {
     
     // Add to totals
     subtotal += itemSubtotal;
+    totalItemDiscount += itemDiscountAmount;
     totalCgst += itemGst.cgstAmount;
     totalSgst += itemGst.sgstAmount;
     totalIgst += itemGst.igstAmount;
@@ -214,9 +216,10 @@ function calculateInvoiceGST(params) {
     });
   }
   
-  // Apply invoice-level discount
+  // Total discount = item-level discounts + invoice-level discount
   const invoiceDiscountAmount = parseFloat(discountAmount);
-  const taxableAmount = subtotal - invoiceDiscountAmount;
+  const totalDiscountAmount = totalItemDiscount + invoiceDiscountAmount;
+  const taxableAmount = subtotal - totalDiscountAmount;
   
   // Calculate totals
   const totalTaxAmount = totalCgst + totalSgst + totalIgst + totalCess;
@@ -231,7 +234,7 @@ function calculateInvoiceGST(params) {
     
     // Subtotals
     subtotal: roundTo2Decimals(subtotal),
-    discountAmount: roundTo2Decimals(invoiceDiscountAmount),
+    discountAmount: roundTo2Decimals(totalDiscountAmount),
     taxableAmount: roundTo2Decimals(taxableAmount),
     
     // GST Breakdown

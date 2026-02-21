@@ -157,7 +157,9 @@ async function createPurchase(purchaseData) {
   });
 
   // Calculate purchase totals
-  const subtotal = calculatedItems.reduce((sum, item) => sum + item.taxableAmount, 0);
+  const grossSubtotal = calculatedItems.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.unitPrice)), 0);
+  const totalDiscountAmount = calculatedItems.reduce((sum, item) => sum + (item.discountAmount || 0), 0);
+  const subtotal = grossSubtotal - totalDiscountAmount; // taxable amount after discounts
   const totalTaxAmount = calculatedItems.reduce((sum, item) => sum + item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount, 0);
   const totalAmount = calculatedItems.reduce((sum, item) => sum + item.totalAmount, 0);
   const totalItcAmount = calculatedItems.reduce((sum, item) => sum + item.itcAmount, 0);
@@ -177,8 +179,8 @@ async function createPurchase(purchaseData) {
         supplierInvoiceNumber,
         supplierInvoiceDate: new Date(supplierInvoiceDate),
         purchaseType,
-        subtotal,
-        discountAmount: 0,
+        subtotal: grossSubtotal,
+        discountAmount: totalDiscountAmount,
         taxableAmount: subtotal,
         cgstAmount,
         sgstAmount,
@@ -401,7 +403,9 @@ async function updatePurchase(purchaseId, businessId, updateData) {
     });
 
     // Recalculate totals
-    const subtotal = calculatedItems.reduce((sum, item) => sum + item.taxableAmount, 0);
+    const updGrossSubtotal = calculatedItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    const updTotalDiscount = calculatedItems.reduce((sum, item) => sum + (item.discountAmount || 0), 0);
+    const updTaxableAmount = updGrossSubtotal - updTotalDiscount;
     const totalTaxAmount = calculatedItems.reduce((sum, item) => sum + item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount, 0);
     const totalAmount = calculatedItems.reduce((sum, item) => sum + item.totalAmount, 0);
     const totalItcAmount = calculatedItems.reduce((sum, item) => sum + item.itcAmount, 0);
@@ -433,8 +437,9 @@ async function updatePurchase(purchaseId, businessId, updateData) {
         data: {
           supplierInvoiceNumber: updateData.supplierInvoiceNumber || purchase.supplierInvoiceNumber,
           supplierInvoiceDate: updateData.supplierInvoiceDate ? new Date(updateData.supplierInvoiceDate) : purchase.supplierInvoiceDate,
-          subtotal,
-          taxableAmount: subtotal,
+          subtotal: updGrossSubtotal,
+          discountAmount: updTotalDiscount,
+          taxableAmount: updTaxableAmount,
           cgstAmount,
           sgstAmount,
           igstAmount,
