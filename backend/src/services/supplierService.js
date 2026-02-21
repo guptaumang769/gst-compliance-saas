@@ -28,8 +28,11 @@ async function createSupplier(supplierData) {
     email,
     phone,
     contactPerson,
-    supplierType = 'registered' // registered, unregistered, composition
+    supplierType // registered, unregistered, composition
   } = supplierData;
+
+  // Auto-detect supplier type based on GSTIN if not explicitly provided
+  const effectiveSupplierType = supplierType || (gstin ? 'registered' : 'unregistered');
 
   // Validation
   if (!businessId || !supplierName || !billingAddress || !city || !state || !pincode) {
@@ -80,7 +83,7 @@ async function createSupplier(supplierData) {
       email: email || null,
       phone: phone || null,
       contactPerson: contactPerson || null,
-      supplierType
+      supplierType: effectiveSupplierType
     }
   });
 
@@ -227,7 +230,8 @@ async function updateSupplier(supplierId, businessId, updateData) {
       email: email !== undefined ? email : supplier.email,
       phone: phone !== undefined ? phone : supplier.phone,
       contactPerson: contactPerson !== undefined ? contactPerson : supplier.contactPerson,
-      supplierType: supplierType || supplier.supplierType
+      // Auto-detect supplier type based on GSTIN if type not explicitly provided
+      supplierType: supplierType || (gstin ? 'registered' : (gstin === null || gstin === '' ? 'unregistered' : supplier.supplierType))
     }
   });
 

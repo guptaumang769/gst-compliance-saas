@@ -83,6 +83,7 @@ async function createPurchase(purchaseData) {
       unitPrice,
       gstRate,
       cessRate = 0,
+      discount = 0,
       isItcEligible: itemItcEligible = true
     } = item;
 
@@ -91,8 +92,11 @@ async function createPurchase(purchaseData) {
       throw new Error(`Missing required item fields: itemName, quantity, unitPrice, gstRate`);
     }
 
-    // Calculate taxable amount
-    const taxableAmount = parseFloat(quantity) * parseFloat(unitPrice);
+    // Calculate taxable amount with discount
+    const itemSubtotal = parseFloat(quantity) * parseFloat(unitPrice);
+    const discountPercent = parseFloat(discount) || 0;
+    const itemDiscountAmount = (itemSubtotal * discountPercent) / 100;
+    const taxableAmount = itemSubtotal - itemDiscountAmount;
 
     // Validate taxable amount
     if (!taxableAmount || taxableAmount <= 0) {
@@ -134,8 +138,8 @@ async function createPurchase(purchaseData) {
       quantity: parseFloat(quantity),
       unit,
       unitPrice: parseFloat(unitPrice),
-      discountPercent: 0,
-      discountAmount: 0,
+      discountPercent,
+      discountAmount: itemDiscountAmount,
       taxableAmount,
       gstRate: parseFloat(gstRate),
       cgstRate: gstResult.cgstRate,
@@ -327,8 +331,132 @@ async function updatePurchase(purchaseId, businessId, updateData) {
     throw new Error('Cannot update purchase: already filed in GSTR-2');
   }
 
-  const { notes, isPaid, paymentDate, paymentMethod, isItcEligible, itcClaimType } = updateData;
+  const { notes, isPaid, paymentDate, paymentMethod, isItcEligible, itcClaimType, items } = updateData;
 
+  // If items are being updated, recalculate GST
+  if (items && items.length > 0) {
+    const business = await prisma.business.findFirst({
+      where: { id: businessId, isActive: true }
+    });
+
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: purchase.supplierId, businessId, isActive: true }
+    });
+
+    if (!business || !supplier) {
+      throw new Error('Business or supplier not found');
+    }
+
+    const buyerStateCode = business.stateCode;
+    const effectiveSupplierStateCode = supplier.stateCode || buyerStateCode;
+
+    // Recalculate GST for each item
+    const calculatedItems = items.map((item) => {
+      const itemName = item.itemName || item.description;
+      const quantity = parseFloat(item.quantity);
+      const unitPrice = parseFloat(item.unitPrice);
+      const gstRate = parseFloat(item.gstRate);
+      const cessRate = parseFloat(item.cessRate || 0);
+      const discountPercent = parseFloat(item.discount || item.discountPercent || 0);
+      const itemSubtotal = quantity * unitPrice;
+      const itemDiscountAmount = (itemSubtotal * discountPercent) / 100;
+      const taxableAmount = itemSubtotal - itemDiscountAmount;
+
+      const gstResult = gstCalculator.calculateItemGST({
+        taxableAmount,
+        gstRate,
+        sellerStateCode: effectiveSupplierStateCode,
+        buyerStateCode,
+        invoiceType: 'b2b',
+        cessRate
+      });
+
+      const itcAmount = (isItcEligible !== undefined ? isItcEligible : purchase.isItcEligible) 
+        ? gstResult.totalTaxAmount : 0;
+
+      return {
+        itemName,
+        description: item.description || null,
+        hsnCode: item.hsnCode || null,
+        sacCode: item.sacCode || null,
+        quantity,
+        unit: item.unit || 'NOS',
+        unitPrice,
+        discountPercent,
+        discountAmount: itemDiscountAmount,
+        taxableAmount,
+        gstRate,
+        cgstRate: gstResult.cgstRate,
+        cgstAmount: gstResult.cgstAmount,
+        sgstRate: gstResult.sgstRate,
+        sgstAmount: gstResult.sgstAmount,
+        igstRate: gstResult.igstRate,
+        igstAmount: gstResult.igstAmount,
+        cessRate,
+        cessAmount: gstResult.cessAmount,
+        isItcEligible: isItcEligible !== undefined ? isItcEligible : purchase.isItcEligible,
+        itcAmount,
+        totalAmount: gstResult.totalAmount
+      };
+    });
+
+    // Recalculate totals
+    const subtotal = calculatedItems.reduce((sum, item) => sum + item.taxableAmount, 0);
+    const totalTaxAmount = calculatedItems.reduce((sum, item) => sum + item.cgstAmount + item.sgstAmount + item.igstAmount + item.cessAmount, 0);
+    const totalAmount = calculatedItems.reduce((sum, item) => sum + item.totalAmount, 0);
+    const totalItcAmount = calculatedItems.reduce((sum, item) => sum + item.itcAmount, 0);
+    const cgstAmount = calculatedItems.reduce((sum, item) => sum + item.cgstAmount, 0);
+    const sgstAmount = calculatedItems.reduce((sum, item) => sum + item.sgstAmount, 0);
+    const igstAmount = calculatedItems.reduce((sum, item) => sum + item.igstAmount, 0);
+    const cessAmount = calculatedItems.reduce((sum, item) => sum + item.cessAmount, 0);
+
+    // Transaction: delete old items, create new, update purchase
+    const updatedPurchase = await prisma.$transaction(async (tx) => {
+      // Delete old items
+      await tx.purchaseItem.deleteMany({
+        where: { purchaseId }
+      });
+
+      // Create new items
+      for (const calcItem of calculatedItems) {
+        await tx.purchaseItem.create({
+          data: {
+            purchaseId,
+            ...calcItem
+          }
+        });
+      }
+
+      // Update purchase totals
+      return tx.purchase.update({
+        where: { id: purchaseId },
+        data: {
+          supplierInvoiceNumber: updateData.supplierInvoiceNumber || purchase.supplierInvoiceNumber,
+          supplierInvoiceDate: updateData.supplierInvoiceDate ? new Date(updateData.supplierInvoiceDate) : purchase.supplierInvoiceDate,
+          subtotal,
+          taxableAmount: subtotal,
+          cgstAmount,
+          sgstAmount,
+          igstAmount,
+          cessAmount,
+          totalTaxAmount,
+          totalAmount,
+          itcAmount: totalItcAmount,
+          notes: notes !== undefined ? notes : purchase.notes,
+          isPaid: isPaid !== undefined ? isPaid : purchase.isPaid,
+          isItcEligible: isItcEligible !== undefined ? isItcEligible : purchase.isItcEligible,
+        },
+        include: {
+          supplier: true,
+          items: true
+        }
+      });
+    });
+
+    return updatedPurchase;
+  }
+
+  // Simple update (no items change)
   const updatedPurchase = await prisma.purchase.update({
     where: { id: purchaseId },
     data: {
@@ -338,7 +466,6 @@ async function updatePurchase(purchaseId, businessId, updateData) {
       paymentMethod: paymentMethod !== undefined ? paymentMethod : purchase.paymentMethod,
       isItcEligible: isItcEligible !== undefined ? isItcEligible : purchase.isItcEligible,
       itcClaimType: itcClaimType !== undefined ? itcClaimType : purchase.itcClaimType,
-      // Recalculate ITC if eligibility changed
       itcAmount: isItcEligible !== undefined && !isItcEligible ? 0 : purchase.itcAmount
     },
     include: {

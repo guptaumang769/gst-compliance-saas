@@ -149,25 +149,46 @@ export default function DashboardPage() {
     }
   };
 
+  // Derive invoice status from available fields (since Invoice model has no 'status' field)
+  const getInvoiceStatus = (invoice) => {
+    if (invoice.isPaid) return 'Paid';
+    if (invoice.filedInGstr1) return 'Filed';
+    if (invoice.pdfGenerated) return 'Generated';
+    if (invoice.dueDate && new Date(invoice.dueDate) < new Date()) return 'Overdue';
+    return 'Draft';
+  };
+
   const getStatusColor = (status) => {
     const statusUpper = status?.charAt(0).toUpperCase() + status?.slice(1).toLowerCase();
     return INVOICE_STATUS_COLORS[statusUpper] || 'default';
   };
 
   const getRevenueChartData = () => {
-    if (!dashboardData?.monthlyData) return [];
+    // Backend returns data.sales for current month; build a single-point chart
+    const salesData = dashboardData?.data?.sales;
+    if (!salesData || !salesData.totalRevenue) return [];
     
-    return dashboardData.monthlyData.map((item) => ({
-      month: formatDate(new Date(item.year, item.month - 1), 'MMM'),
-      revenue: item.totalRevenue || 0,
-      tax: item.totalTax || 0,
-    }));
+    const period = dashboardData?.data?.period;
+    const monthLabel = period?.monthName || 'Current';
+    
+    return [
+      {
+        month: monthLabel,
+        revenue: salesData.totalRevenue || 0,
+        tax: salesData.totalTax || 0,
+      },
+    ];
   };
 
   const getGSTBreakdownData = () => {
-    if (!dashboardData?.summary) return [];
+    const salesData = dashboardData?.data?.sales;
+    if (!salesData) return [];
 
-    const { totalCGST = 0, totalSGST = 0, totalIGST = 0 } = dashboardData.summary;
+    const totalCGST = salesData.cgst || 0;
+    const totalSGST = salesData.sgst || 0;
+    const totalIGST = salesData.igst || 0;
+
+    if (totalCGST === 0 && totalSGST === 0 && totalIGST === 0) return [];
     
     return [
       { type: 'CGST', amount: totalCGST },
@@ -444,13 +465,13 @@ export default function DashboardPage() {
                       <TableCell>{invoice.customer?.customerName || 'N/A'}</TableCell>
                       <TableCell>
                         <Typography variant="body2" fontWeight={600}>
-                          {formatCurrency(invoice.totalAmount || invoice.grandTotal)}
+                          {formatCurrency(invoice.totalAmount || 0)}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={invoice.filedInGstr1 ? 'Filed' : (invoice.status || 'Draft')}
-                          color={getStatusColor(invoice.filedInGstr1 ? 'Filed' : (invoice.status || 'Draft'))}
+                          label={getInvoiceStatus(invoice)}
+                          color={getStatusColor(getInvoiceStatus(invoice))}
                           size="small"
                           sx={{ fontWeight: 600 }}
                         />

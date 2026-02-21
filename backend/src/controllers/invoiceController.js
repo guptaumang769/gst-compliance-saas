@@ -334,7 +334,7 @@ async function generateInvoicePDF(req, res) {
 
 /**
  * GET /api/invoices/:id/download-pdf
- * Download PDF for an invoice
+ * Download PDF for an invoice (auto-generates if not already generated)
  */
 async function downloadInvoicePDF(req, res) {
   try {
@@ -354,8 +354,15 @@ async function downloadInvoicePDF(req, res) {
       });
     }
     
-    // Get PDF path
-    const pdfPath = await pdfService.getInvoicePDFPath(invoiceId, business.id);
+    let pdfPath;
+    try {
+      // Try to get existing PDF path
+      pdfPath = await pdfService.getInvoicePDFPath(invoiceId, business.id);
+    } catch (err) {
+      // If PDF doesn't exist yet, auto-generate it
+      console.log('PDF not found, auto-generating...');
+      pdfPath = await pdfService.generateInvoicePDF(invoiceId, business.id);
+    }
     
     // Send file
     return res.download(pdfPath);

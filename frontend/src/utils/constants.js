@@ -55,6 +55,8 @@ export const INVOICE_STATUS = {
   PENDING: 'Pending',
   OVERDUE: 'Overdue',
   DRAFT: 'Draft',
+  FILED: 'Filed',
+  GENERATED: 'Generated',
 };
 
 // Invoice Status Colors
@@ -63,6 +65,8 @@ export const INVOICE_STATUS_COLORS = {
   [INVOICE_STATUS.PENDING]: 'warning',
   [INVOICE_STATUS.OVERDUE]: 'error',
   [INVOICE_STATUS.DRAFT]: 'default',
+  [INVOICE_STATUS.FILED]: 'info',
+  [INVOICE_STATUS.GENERATED]: 'primary',
 };
 
 // Navigation Items
