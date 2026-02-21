@@ -81,6 +81,7 @@ export const purchaseAPI = {
   create: (data) => api.post('/purchases', data),
   update: (id, data) => api.put(`/purchases/${id}`, data),
   delete: (id) => api.delete(`/purchases/${id}`),
+  markAsPaid: (id, data) => api.patch(`/purchases/${id}/mark-paid`, data),
   getStats: () => api.get('/purchases/stats'),
   calculateITC: (year, month) => api.get(`/purchases/itc/${year}/${month}`),
 };

@@ -42,6 +42,8 @@ import {
   RemoveCircleOutline,
   WarningAmber,
   InfoOutlined,
+  CheckCircle,
+  Undo,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -226,6 +228,20 @@ export default function PurchasesPage() {
       await purchaseAPI.delete(deletingPurchase.id);
       handleSuccess('Purchase deleted successfully');
       handleCloseDeleteDialog();
+      fetchPurchases();
+    } catch (err) {
+      handleApiError(err);
+    }
+  };
+
+  const handleTogglePaid = async (purchase) => {
+    try {
+      const newIsPaid = !purchase.isPaid;
+      await purchaseAPI.markAsPaid(purchase.id, {
+        isPaid: newIsPaid,
+        paymentMethod: 'bank_transfer'
+      });
+      handleSuccess(newIsPaid ? 'Purchase marked as paid' : 'Purchase marked as unpaid');
       fetchPurchases();
     } catch (err) {
       handleApiError(err);
@@ -447,6 +463,15 @@ export default function PurchasesPage() {
                           </TableCell>
                           <TableCell>
                             <Box sx={{ display: 'flex', gap: 0.5 }}>
+                              <Tooltip title={purchase.isPaid ? 'Mark as Unpaid' : 'Mark as Paid'}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleTogglePaid(purchase)}
+                                  color={purchase.isPaid ? 'default' : 'success'}
+                                >
+                                  {purchase.isPaid ? <Undo fontSize="small" /> : <CheckCircle fontSize="small" />}
+                                </IconButton>
+                              </Tooltip>
                               <Tooltip title="Edit">
                                 <IconButton
                                   size="small"

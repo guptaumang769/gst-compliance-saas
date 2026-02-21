@@ -18,6 +18,7 @@ router.get('/stats', purchaseController.getPurchaseStats);
 router.get('/itc/:year/:month', purchaseController.calculateItcForPeriod);
 router.get('/:id', purchaseController.getPurchaseById);
 router.put('/:id', purchaseController.updatePurchase);
+router.patch('/:id/mark-paid', purchaseController.markPurchaseAsPaid);
 router.delete('/:id', purchaseController.deletePurchase);
 
 module.exports = router;

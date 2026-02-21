@@ -423,12 +423,31 @@ async function updateInvoice(invoiceId, businessId, updateData) {
           where: { invoiceId }
         });
         
-        // Create new items
+        // Create new items (explicitly map fields to match InvoiceItem schema)
         for (const calcItem of gstCalculation.items) {
           await tx.invoiceItem.create({
             data: {
               invoiceId,
-              ...calcItem
+              itemName: calcItem.itemName || calcItem.description || 'Item',
+              description: calcItem.description || null,
+              hsnCode: calcItem.hsnCode || null,
+              sacCode: calcItem.sacCode || null,
+              quantity: calcItem.quantity,
+              unit: calcItem.unit || 'NOS',
+              unitPrice: calcItem.unitPrice,
+              discountPercent: calcItem.discountPercent || 0,
+              discountAmount: calcItem.discountAmount || 0,
+              taxableAmount: calcItem.taxableAmount,
+              gstRate: calcItem.gstRate,
+              cgstRate: calcItem.cgstRate,
+              cgstAmount: calcItem.cgstAmount,
+              sgstRate: calcItem.sgstRate,
+              sgstAmount: calcItem.sgstAmount,
+              igstRate: calcItem.igstRate,
+              igstAmount: calcItem.igstAmount,
+              cessRate: calcItem.cessRate || 0,
+              cessAmount: calcItem.cessAmount || 0,
+              totalAmount: calcItem.totalAmount
             }
           });
         }
