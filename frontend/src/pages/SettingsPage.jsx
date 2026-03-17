@@ -22,6 +22,7 @@ import {
   Notifications,
   Save,
   Person,
+  AccountBalance,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -71,6 +72,7 @@ export default function SettingsPage() {
     gstReturnReminders: true,
     paymentAlerts: true,
   });
+  const [savingNotifications, setSavingNotifications] = useState(false);
 
   const businessFormik = useFormik({
     initialValues: {
@@ -154,6 +156,27 @@ export default function SettingsPage() {
     },
   });
 
+  const bankFormik = useFormik({
+    initialValues: {
+      bankName: '',
+      bankAccountNumber: '',
+      bankIfsc: '',
+      bankBranch: '',
+      filingFrequency: 'monthly',
+    },
+    enableReinitialize: true,
+    onSubmit: async (values, { setSubmitting }) => {
+      try {
+        await authAPI.updateSettings(values);
+        handleSuccess('Bank details and filing settings saved successfully');
+      } catch (err) {
+        handleApiError(err, 'Failed to save settings');
+      } finally {
+        setSubmitting(false);
+      }
+    },
+  });
+
   // Fetch profile data on mount
   useEffect(() => {
     fetchProfileData();
@@ -186,6 +209,15 @@ export default function SettingsPage() {
         phone: business.phone || '',
         email: business.email || '',
       });
+
+      // Populate bank details form
+      bankFormik.setValues({
+        bankName: business.bankName || '',
+        bankAccountNumber: business.bankAccountNumber || '',
+        bankIfsc: business.bankIfsc || '',
+        bankBranch: business.bankBranch || '',
+        filingFrequency: business.filingFrequency || 'monthly',
+      });
     } catch (err) {
       const msg = handleApiError(err, 'Failed to load profile data');
       setError(msg);
@@ -201,9 +233,24 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSaveNotifications = () => {
-    handleSuccess('Notification preferences saved');
+  const handleSaveNotifications = async () => {
+    try {
+      setSavingNotifications(true);
+      localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
+      handleSuccess('Notification preferences saved');
+    } catch (err) {
+      handleApiError(err, 'Failed to save notification preferences');
+    } finally {
+      setSavingNotifications(false);
+    }
   };
+
+  useEffect(() => {
+    const saved = localStorage.getItem('notificationSettings');
+    if (saved) {
+      try { setNotificationSettings(JSON.parse(saved)); } catch {}
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -244,6 +291,7 @@ export default function SettingsPage() {
         >
           <Tab icon={<Business />} label="Business Profile" iconPosition="start" />
           <Tab icon={<Person />} label="User Profile" iconPosition="start" />
+          <Tab icon={<AccountBalance />} label="Bank & Filing" iconPosition="start" />
           <Tab icon={<Security />} label="Change Password" iconPosition="start" />
           <Tab icon={<Notifications />} label="Notifications" iconPosition="start" />
         </Tabs>
@@ -495,8 +543,111 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* Change Password Tab */}
+      {/* Bank Details & Filing Frequency Tab */}
       {currentTab === 2 && (
+        <Card>
+          <CardContent>
+            <form onSubmit={bankFormik.handleSubmit}>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom>
+                    Bank Details
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Bank details will appear on your invoice PDFs
+                  </Typography>
+                  <Divider sx={{ mb: 3 }} />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    id="bankName"
+                    name="bankName"
+                    label="Bank Name"
+                    value={bankFormik.values.bankName}
+                    onChange={bankFormik.handleChange}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    id="bankAccountNumber"
+                    name="bankAccountNumber"
+                    label="Account Number"
+                    value={bankFormik.values.bankAccountNumber}
+                    onChange={bankFormik.handleChange}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    id="bankIfsc"
+                    name="bankIfsc"
+                    label="IFSC Code"
+                    value={bankFormik.values.bankIfsc}
+                    onChange={bankFormik.handleChange}
+                    inputProps={{ style: { textTransform: 'uppercase' } }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    id="bankBranch"
+                    name="bankBranch"
+                    label="Branch Name"
+                    value={bankFormik.values.bankBranch}
+                    onChange={bankFormik.handleChange}
+                  />
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    GST Filing Frequency
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    select
+                    id="filingFrequency"
+                    name="filingFrequency"
+                    label="Filing Frequency"
+                    value={bankFormik.values.filingFrequency}
+                    onChange={bankFormik.handleChange}
+                  >
+                    <MenuItem value="monthly">Monthly</MenuItem>
+                    <MenuItem value="quarterly">Quarterly (QRMP Scheme)</MenuItem>
+                  </TextField>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Quarterly filing (QRMP) is available for businesses with annual turnover up to Rs. 5 crore.
+                  </Alert>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    startIcon={<Save />}
+                    disabled={bankFormik.isSubmitting}
+                    className="gradient-button-primary"
+                  >
+                    {bankFormik.isSubmitting ? 'Saving...' : 'Save Settings'}
+                  </Button>
+                </Grid>
+              </Grid>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Change Password Tab */}
+      {currentTab === 3 && (
         <Card>
           <CardContent>
             <form onSubmit={passwordFormik.handleSubmit}>
@@ -579,7 +730,7 @@ export default function SettingsPage() {
       )}
 
       {/* Notifications Tab */}
-      {currentTab === 3 && (
+      {currentTab === 4 && (
         <Card>
           <CardContent>
             <Grid container spacing={3}>
@@ -655,9 +806,10 @@ export default function SettingsPage() {
                   variant="contained"
                   startIcon={<Save />}
                   onClick={handleSaveNotifications}
+                  disabled={savingNotifications}
                   className="gradient-button-primary"
                 >
-                  Save Preferences
+                  {savingNotifications ? 'Saving...' : 'Save Preferences'}
                 </Button>
               </Grid>
             </Grid>

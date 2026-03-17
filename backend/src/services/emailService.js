@@ -32,11 +32,11 @@ const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || 'GST Compliance SaaS';
  * Create email transporter
  */
 function createTransporter() {
-  if (!EMAIL_CONFIG.auth.user || !EMAIL_CONFIG.auth.password) {
+  if (!EMAIL_CONFIG.auth.user || !EMAIL_CONFIG.auth.pass) {
     throw new Error('Email configuration not set. Please configure EMAIL_USER and EMAIL_PASSWORD in .env file.');
   }
 
-  return nodemailer.createTransporter(EMAIL_CONFIG);
+  return nodemailer.createTransport(EMAIL_CONFIG);
 }
 
 /**
@@ -368,8 +368,88 @@ async function verifyEmailConfig() {
   }
 }
 
+/**
+ * Send email verification link after registration
+ */
+async function sendVerificationEmail(toEmail, verificationToken, businessName) {
+  const transporter = createTransporter();
+  const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
+
+  const mailOptions = {
+    from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM}>`,
+    to: toEmail,
+    subject: 'Verify your email - GST Compliance SaaS',
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="margin: 0;">Welcome to GST Compliance SaaS</h1>
+  </div>
+  <div style="background-color: #f8f9fa; padding: 30px; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 8px 8px;">
+    <p>Hello,</p>
+    <p>Thank you for registering <strong>${businessName || 'your business'}</strong>. Please verify your email address to activate your account.</p>
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${verifyUrl}" style="display: inline-block; background-color: #6366F1; color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; font-weight: bold;">Verify Email Address</a>
+    </div>
+    <p style="font-size: 13px; color: #6c757d;">If the button doesn't work, copy and paste this link:<br><a href="${verifyUrl}">${verifyUrl}</a></p>
+    <p style="font-size: 13px; color: #6c757d;">This link expires in 24 hours.</p>
+  </div>
+  <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #6c757d;">
+    <p>Powered by GST Compliance SaaS</p>
+  </div>
+</body>
+</html>`.trim()
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  return { success: true, messageId: info.messageId, to: toEmail };
+}
+
+/**
+ * Send password reset link
+ */
+async function sendPasswordResetEmail(toEmail, resetToken) {
+  const transporter = createTransporter();
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+
+  const mailOptions = {
+    from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM}>`,
+    to: toEmail,
+    subject: 'Reset your password - GST Compliance SaaS',
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="margin: 0;">Password Reset</h1>
+  </div>
+  <div style="background-color: #f8f9fa; padding: 30px; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 8px 8px;">
+    <p>Hello,</p>
+    <p>We received a request to reset your password. Click the button below to set a new password.</p>
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${resetUrl}" style="display: inline-block; background-color: #6366F1; color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; font-weight: bold;">Reset Password</a>
+    </div>
+    <p style="font-size: 13px; color: #6c757d;">If the button doesn't work, copy and paste this link:<br><a href="${resetUrl}">${resetUrl}</a></p>
+    <p style="font-size: 13px; color: #6c757d;">This link expires in 1 hour. If you didn't request this, please ignore this email.</p>
+  </div>
+  <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #6c757d;">
+    <p>Powered by GST Compliance SaaS</p>
+  </div>
+</body>
+</html>`.trim()
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  return { success: true, messageId: info.messageId, to: toEmail };
+}
+
 module.exports = {
   sendInvoiceEmail,
   sendTestEmail,
-  verifyEmailConfig
+  verifyEmailConfig,
+  sendVerificationEmail,
+  sendPasswordResetEmail
 };

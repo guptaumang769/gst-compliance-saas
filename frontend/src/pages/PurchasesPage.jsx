@@ -31,6 +31,8 @@ import {
   Select,
   Divider,
   Tooltip,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Add,
@@ -50,6 +52,31 @@ import * as Yup from 'yup';
 import { purchaseAPI, supplierAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import { formatCurrency, formatDate } from '../utils/formatters';
+
+const COMMON_HSN_CODES = [
+  { code: '0401', desc: 'Milk and cream', rate: '5%' },
+  { code: '1001', desc: 'Wheat and meslin', rate: '5%' },
+  { code: '1006', desc: 'Rice', rate: '5%' },
+  { code: '3004', desc: 'Medicaments', rate: '12%' },
+  { code: '3901', desc: 'Polymers of ethylene', rate: '18%' },
+  { code: '3926', desc: 'Plastic articles', rate: '18%' },
+  { code: '4819', desc: 'Cartons, boxes of paper', rate: '18%' },
+  { code: '7308', desc: 'Iron/steel structures', rate: '18%' },
+  { code: '7318', desc: 'Screws, bolts, nuts', rate: '18%' },
+  { code: '8415', desc: 'Air conditioning machines', rate: '28%' },
+  { code: '8418', desc: 'Refrigerators, freezers', rate: '18%' },
+  { code: '8471', desc: 'Computers and peripherals', rate: '18%' },
+  { code: '8504', desc: 'Electrical transformers', rate: '18%' },
+  { code: '8517', desc: 'Telephone sets, smartphones', rate: '18%' },
+  { code: '8703', desc: 'Motor cars and vehicles', rate: '28%' },
+  { code: '9401', desc: 'Seats and chairs', rate: '18%' },
+  { code: '9403', desc: 'Furniture', rate: '18%' },
+  { code: '998311', desc: 'IT consulting services (SAC)', rate: '18%' },
+  { code: '998312', desc: 'IT design & development (SAC)', rate: '18%' },
+  { code: '997321', desc: 'Accounting/auditing services (SAC)', rate: '18%' },
+  { code: '998212', desc: 'Freight transport by road (SAC)', rate: '18%' },
+  { code: '997331', desc: 'Legal services (SAC)', rate: '18%' },
+];
 
 const purchaseSchema = Yup.object({
   supplierId: Yup.string().required('Supplier is required'),
@@ -132,6 +159,7 @@ export default function PurchasesPage() {
       supplierInvoiceDate: new Date().toISOString().split('T')[0],
       dueDate: '',
       notes: '',
+      reverseCharge: false,
       items: [
         {
           description: '',
@@ -186,6 +214,7 @@ export default function PurchasesPage() {
         supplierInvoiceDate: purchase.supplierInvoiceDate?.split('T')[0] || new Date().toISOString().split('T')[0],
         dueDate: purchase.dueDate?.split('T')[0] || '',
         notes: purchase.notes || '',
+        reverseCharge: purchase.reverseCharge || false,
         items: (purchase.items || []).map(item => ({
           description: item.itemName || item.description || '',
           hsnCode: item.hsnCode || '',
@@ -655,6 +684,27 @@ export default function PurchasesPage() {
                 </Grid>
               )}
 
+              {/* Reverse Charge Toggle */}
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formik.values.reverseCharge || (isUnregisteredSupplier && formik.values.reverseCharge)}
+                      onChange={(e) => formik.setFieldValue('reverseCharge', e.target.checked)}
+                    />
+                  }
+                  label="Reverse Charge Mechanism (RCM)"
+                />
+                {(formik.values.reverseCharge || isUnregisteredSupplier) && (
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    <Typography variant="body2">
+                      <strong>RCM Applied:</strong> You (the buyer) are liable to pay GST directly to the government.
+                      This will be reported under Section 3.1(d) of GSTR-3B and ITC can be claimed under Section 4(A)(3).
+                    </Typography>
+                  </Alert>
+                )}
+              </Grid>
+
               {/* Line Items */}
               <Grid item xs={12}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -685,14 +735,38 @@ export default function PurchasesPage() {
                       </Grid>
 
                       <Grid item xs={6} md={1.5}>
-                        <TextField
-                          fullWidth
-                          label="HSN Code"
-                          value={item.hsnCode}
-                          onChange={(e) =>
-                            formik.setFieldValue(`items.${index}.hsnCode`, e.target.value)
+                        <Autocomplete
+                          freeSolo
+                          value={item.hsnCode || ''}
+                          onChange={(e, newValue) => {
+                            const code = typeof newValue === 'object' ? newValue?.code : newValue;
+                            formik.setFieldValue(`items.${index}.hsnCode`, code || '');
+                          }}
+                          onInputChange={(e, inputValue) => {
+                            formik.setFieldValue(`items.${index}.hsnCode`, inputValue || '');
+                          }}
+                          options={COMMON_HSN_CODES}
+                          getOptionLabel={(option) =>
+                            typeof option === 'string' ? option : `${option.code} - ${option.desc}`
                           }
-                          size="small"
+                          filterOptions={(options, { inputValue }) =>
+                            options.filter(
+                              (o) =>
+                                o.code.includes(inputValue) ||
+                                o.desc.toLowerCase().includes(inputValue.toLowerCase())
+                            )
+                          }
+                          renderOption={(props, option) => (
+                            <li {...props} key={option.code}>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>{option.code}</Typography>
+                                <Typography variant="caption" color="text.secondary">{option.desc} ({option.rate})</Typography>
+                              </Box>
+                            </li>
+                          )}
+                          renderInput={(params) => (
+                            <TextField {...params} label="HSN Code" size="small" />
+                          )}
                         />
                       </Grid>
 

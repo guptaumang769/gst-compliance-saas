@@ -1,9 +1,10 @@
 # 🧪 GST Compliance SaaS - User Acceptance Test Plan
 
-**Version:** 1.0  
-**Date:** January 30, 2026  
-**Duration:** 3-5 Days  
-**Team Size:** 4 Members
+**Version:** 3.0  
+**Date:** March 17, 2026  
+**Duration:** 5-7 Days  
+**Team Size:** 4 Members  
+**Total Test Cases:** 120+
 
 ---
 
@@ -78,9 +79,29 @@
    Business Email: business@example.com
    ```
 3. Click **"Register"**
-4. **Expected:** Success message, redirected to dashboard
+4. **Expected:** Success message with "Please check your email to verify your account", redirected to dashboard
+5. **Expected:** A 14-day free trial subscription is automatically started
 
-**✅ Pass Criteria:** Account created successfully, able to login
+**✅ Pass Criteria:** Account created successfully, verification email received, trial started
+
+#### **Test Case 1.1b: Email Verification**
+1. Check the email inbox used during registration
+2. **Expected:** Verification email received from GST Compliance SaaS
+3. Click the **"Verify Email Address"** button in the email
+4. **Expected:** Redirected to `/verify-email` page, shows "Email verified successfully"
+5. Navigate to login page and login
+6. **Expected:** Login succeeds, no verification warning
+
+#### **Test Case 1.1c: Resend Verification Email**
+1. Navigate to `/verify-email` page directly
+2. Enter your email in the "Resend Verification" section
+3. Click **"Resend"**
+4. **Expected:** New verification email received
+
+#### **Test Case 1.1d: Login Without Verification**
+1. Register a new account but do NOT verify email
+2. Login with the unverified account
+3. **Expected:** Login succeeds (soft enforcement), but `emailVerified` flag should be `false` in profile
 
 ---
 
@@ -702,6 +723,327 @@ Test on:
 
 ---
 
+## 📅 **DAY 6: New Features - Subscription, Auth Flows & P1 Features**
+
+### **All Members: Password Reset Flow (30 minutes)**
+
+#### **Test Case 6.1: Forgot Password - Request Reset**
+1. Navigate to login page
+2. Click **"Forgot password?"** link
+3. **Expected:** Redirected to `/forgot-password` page
+4. Enter your registered email
+5. Click **"Send Reset Link"**
+6. **Expected:** Success message "If this email exists, a reset link has been sent."
+7. Check email inbox
+8. **Expected:** Password reset email received with a reset button
+
+#### **Test Case 6.2: Reset Password - Valid Token**
+1. Click the **"Reset Password"** button in the email
+2. **Expected:** Redirected to `/reset-password` page with token in URL
+3. Enter new password: `NewSecure@789`
+4. Confirm the new password
+5. Click **"Reset Password"**
+6. **Expected:** Success message "Password reset successfully"
+7. Login with the NEW password
+8. **Expected:** Login successful
+9. Try login with the OLD password
+10. **Expected:** Login fails
+
+#### **Test Case 6.3: Reset Password - Invalid/Expired Token**
+1. Navigate to `/reset-password?token=invalid-token-123`
+2. Enter a new password and submit
+3. **Expected:** Error message "Invalid or expired reset token"
+
+#### **Test Case 6.4: Forgot Password - Non-existent Email**
+1. Go to `/forgot-password`
+2. Enter a non-registered email: `nonexistent@test.com`
+3. Click **"Send Reset Link"**
+4. **Expected:** Same success message (should not reveal if email exists or not for security)
+
+**✅ Pass Criteria:** Full password reset flow works, old password invalidated
+
+---
+
+### **CA #1: Subscription & Pricing (2 hours)**
+
+#### **Test Case 6.5: View Pricing Plans**
+1. Navigate to **Pricing** page (via nav bar)
+2. **Expected:** 4 plan cards displayed:
+   - Trial (Free, 14 days)
+   - Starter (₹999/month)
+   - Professional (₹2,999/month)
+   - Enterprise (₹7,999/month)
+3. Verify "Recommended" badge on Starter plan
+4. Toggle **Monthly / Annual** switch
+5. **Expected:** Prices update to annual pricing with savings shown
+
+#### **Test Case 6.6: Current Subscription Display**
+1. On Pricing page, verify the "Current Subscription" section at top
+2. **Expected:** Shows current plan (Free Trial), status (trial), valid until date
+3. Verify usage stats (invoices used, customers count) if displayed
+
+#### **Test Case 6.7: Plan Feature Comparison**
+1. Review feature lists on each plan card
+2. **Expected:** 
+   - Check marks (✓) for included features
+   - Cross marks (✗) for excluded features
+   - Feature limits shown (e.g., "100 invoices/month" for Starter)
+
+#### **Test Case 6.8: Upgrade Plan (Razorpay Checkout)**
+1. Click **"Upgrade"** on any paid plan (e.g., Starter)
+2. **Expected:** Razorpay checkout popup opens
+3. **For Testing:** Use Razorpay test card: `4111 1111 1111 1111`, any future expiry, any CVV
+4. Complete payment
+5. **Expected:** 
+   - Success toast message
+   - Plan updated in "Current Subscription" section
+   - Payment appears in payment history table
+
+#### **Test Case 6.9: Payment History**
+1. Scroll to bottom of Pricing page
+2. **Expected:** Payment history table showing past payments with date, plan, amount, status
+
+#### **Test Case 6.10: Plan Limits Enforcement**
+1. On the trial plan, try creating more invoices than the limit (10)
+2. **Expected:** Error message about invoice limit reached, prompting upgrade
+
+**✅ Pass Criteria:** Pricing UI works, Razorpay checkout opens, payment history displays
+
+---
+
+### **CA #2: Reverse Charge Mechanism (1 hour)**
+
+#### **Test Case 6.11: Invoice RCM Toggle**
+1. Navigate to **Invoices** → Click **"Create Invoice"**
+2. Look for **"Reverse Charge Mechanism (RCM)"** toggle switch
+3. Toggle it ON
+4. **Expected:** Warning alert appears: "RCM Applicable: The recipient (you) is liable to pay GST..."
+5. Create the invoice with RCM enabled
+6. **Expected:** Invoice saved with `reverseCharge: true`
+
+#### **Test Case 6.12: Invoice RCM Toggle - Edit Existing**
+1. Edit an existing invoice
+2. Toggle RCM on/off
+3. Save the invoice
+4. Re-open the invoice
+5. **Expected:** RCM toggle reflects the saved state
+
+#### **Test Case 6.13: Purchase RCM Toggle**
+1. Navigate to **Purchases** → Click **"Add Purchase"**
+2. Select a **registered** supplier
+3. Look for **"Reverse Charge Mechanism (RCM)"** toggle
+4. Toggle it ON
+5. **Expected:** Info alert about GSTR-3B Section 3.1(d) and ITC Section 4(A)(3)
+6. Create the purchase
+7. **Expected:** Purchase saved with `reverseCharge: true`
+
+#### **Test Case 6.14: Purchase RCM - Unregistered Supplier**
+1. Create a new purchase
+2. Select an **unregistered** supplier
+3. **Expected:** 
+   - Unregistered supplier warning already shown
+   - RCM toggle available
+   - Info alert about RCM reporting in GSTR-3B
+
+#### **Test Case 6.15: RCM in GST Returns**
+1. Create invoices/purchases with RCM enabled for a month
+2. Generate GSTR-3B for that month
+3. **Expected:** RCM amounts appear in Table 3.1(d) of GSTR-3B
+
+**✅ Pass Criteria:** RCM toggle works on both invoice and purchase forms, persists on save/edit
+
+---
+
+### **Data Engineer: HSN Autocomplete & Compliance Calendar (2 hours)**
+
+#### **Test Case 6.16: HSN Autocomplete on Invoice**
+1. Navigate to **Invoices** → Click **"Create Invoice"**
+2. In the line items section, click on the **"HSN Code"** field
+3. Type `8471`
+4. **Expected:** Dropdown appears showing "8471 - Computers and peripherals (18%)"
+5. Select the option
+6. **Expected:** HSN code populated with `8471`
+
+#### **Test Case 6.17: HSN Autocomplete - Search by Description**
+1. In the HSN Code field, type `laptop` or `computer`
+2. **Expected:** Dropdown filters to show matching HSN codes by description
+
+#### **Test Case 6.18: HSN Autocomplete - Free Text Entry**
+1. In the HSN Code field, type a custom HSN code: `12345678`
+2. Don't select from dropdown
+3. Click outside the field
+4. **Expected:** Custom code accepted (freeSolo mode allows any input)
+
+#### **Test Case 6.19: HSN Autocomplete on Purchase**
+1. Navigate to **Purchases** → Click **"Add Purchase"**
+2. In the line items, test HSN autocomplete
+3. **Expected:** Same autocomplete behavior as invoices
+
+#### **Test Case 6.20: SAC Code in Autocomplete**
+1. In the HSN field, type `998` or `IT consulting`
+2. **Expected:** SAC codes appear (e.g., "998311 - IT consulting services (SAC) (18%)")
+
+#### **Test Case 6.21: Compliance Calendar - View**
+1. Navigate to **Compliance Calendar** page (via nav bar)
+2. **Expected:** Monthly calendar grid displayed (Sun-Sat columns)
+3. **Expected:** Today's date highlighted
+4. Verify GST deadlines shown:
+   - 11th: GSTR-1 filing deadline
+   - 20th: GSTR-3B filing deadline
+   - 25th: PMT-06 payment deadline
+
+#### **Test Case 6.22: Compliance Calendar - Navigation**
+1. Click **"Next"** arrow to go to next month
+2. **Expected:** Calendar updates to show next month with correct deadlines
+3. Click **"Previous"** arrow
+4. **Expected:** Calendar goes back
+5. Click **"Today"** button
+6. **Expected:** Returns to current month
+
+#### **Test Case 6.23: Compliance Calendar - Color Coding**
+1. Check past dates with deadlines
+2. **Expected:** Color-coded:
+   - Red: Overdue (past deadlines within 15 days)
+   - Orange: Upcoming (within 7 days)
+   - Green: Filed/completed (past deadlines > 15 days)
+   - Blue: Future deadlines
+3. Verify the legend at the bottom matches
+
+#### **Test Case 6.24: Compliance Calendar - Upcoming Deadlines**
+1. Check the "Upcoming Deadlines" sidebar/section
+2. **Expected:** Next 10 deadlines listed in chronological order
+3. Each deadline shows: date, type (GSTR-1, GSTR-3B, etc.), and color status
+
+**✅ Pass Criteria:** HSN autocomplete works with search and free text, calendar shows correct deadlines
+
+---
+
+### **Software Engineer: Settings Improvements (1 hour)**
+
+#### **Test Case 6.25: Bank Details - Save**
+1. Navigate to **Settings** → **Bank & Filing** tab
+2. Fill in bank details:
+   ```
+   Bank Name: State Bank of India
+   Account Number: 1234567890123456
+   IFSC Code: SBIN0001234
+   Branch: Main Branch, Mumbai
+   ```
+3. Click **"Save Settings"**
+4. **Expected:** Success message "Bank details and filing settings saved successfully"
+5. Refresh the page
+6. **Expected:** Bank details are still populated
+
+#### **Test Case 6.26: Filing Frequency - Change**
+1. On the **Bank & Filing** tab, change Filing Frequency from "Monthly" to "Quarterly (QRMP Scheme)"
+2. Click **"Save Settings"**
+3. **Expected:** Saved successfully
+4. Refresh the page
+5. **Expected:** "Quarterly (QRMP Scheme)" is still selected
+
+#### **Test Case 6.27: Notification Settings - Persistence**
+1. Navigate to **Settings** → **Notifications** tab
+2. Toggle OFF "Invoice Reminders"
+3. Toggle OFF "Payment Alerts"
+4. Click **"Save Preferences"**
+5. **Expected:** Success message
+6. Refresh the page
+7. **Expected:** "Invoice Reminders" and "Payment Alerts" still OFF, others still ON
+
+#### **Test Case 6.28: Settings Tab Navigation**
+1. Verify all 5 tabs are present:
+   - Business Profile
+   - User Profile
+   - Bank & Filing
+   - Change Password
+   - Notifications
+2. Click through each tab
+3. **Expected:** Each tab loads correctly with its content
+
+**✅ Pass Criteria:** Bank details persist, filing frequency saves, notifications persist across page reloads
+
+---
+
+## 📅 **DAY 7: Regression Testing & Deployment Verification**
+
+### **All Members: Regression - Verify No Existing Features Broke (2 hours each)**
+
+#### **Test Case 7.1: Registration → Login → Dashboard Flow**
+1. Register a brand new account
+2. Verify email (if configured)
+3. Login
+4. **Expected:** Dashboard loads with zero data, trial plan active
+
+#### **Test Case 7.2: Full Invoice Lifecycle**
+1. Create a customer
+2. Create an invoice with multiple items, discounts, and different GST rates
+3. Verify GST calculation (CGST+SGST for intra-state, IGST for inter-state)
+4. Download PDF
+5. Send email (if configured)
+6. Mark as filed
+7. **Expected:** All steps work as before, status transitions correct
+
+#### **Test Case 7.3: Full Purchase Lifecycle**
+1. Create a supplier
+2. Create a purchase with items and RCM toggle
+3. Verify ITC calculation
+4. Mark as paid
+5. **Expected:** All steps work, ITC correct
+
+#### **Test Case 7.4: GST Returns Generation**
+1. Generate GSTR-1 for current month
+2. Verify B2B, B2C sections, HSN summary
+3. Generate GSTR-3B for current month
+4. Verify outward supplies, ITC, net tax payable
+5. Download JSON for both
+6. **Expected:** All calculations identical to before the code changes
+
+#### **Test Case 7.5: Dashboard Data Accuracy**
+1. Check dashboard revenue stats against actual invoices
+2. Check tax collected against actual GST
+3. Check 6-month revenue trend chart
+4. Use month/year selector to view different months
+5. **Expected:** All data accurate
+
+#### **Test Case 7.6: Search & Filter Regression**
+1. Search invoices by customer name and invoice number
+2. Filter invoices by status (Draft, Generated, Sent, Filed)
+3. Search purchases by supplier name and invoice number
+4. Filter purchases by status (Pending, Paid)
+5. Search customers by name, GSTIN, email
+6. Search suppliers by name, GSTIN
+7. **Expected:** All search and filter still work correctly
+
+#### **Test Case 7.7: Navigation Regression**
+1. Verify all nav bar items work:
+   - Dashboard, Invoices, Customers, Suppliers, Purchases, GST Returns, Compliance Calendar, Pricing
+2. Verify user menu works: Profile, Settings, Logout
+3. **Expected:** All navigation intact, new items (Compliance Calendar, Pricing) added
+
+#### **Test Case 7.8: Edge Case Regression**
+1. Try creating invoice with future date → should be blocked
+2. Try creating customer with duplicate GSTIN → should show error
+3. Try creating invoice with no line items → should show error
+4. Try GSTIN state code mismatch → should show error
+5. **Expected:** All validations still work
+
+#### **Test Case 7.9: Docker Deployment Verification (if deployed)**
+1. Access the app via the deployed URL (not localhost)
+2. Register a new account
+3. Create customers, invoices, purchases
+4. Generate GST returns
+5. **Expected:** Full functionality works on deployed environment
+
+#### **Test Case 7.10: API Health Check**
+1. Access `/health` endpoint
+2. **Expected:** Returns `{ status: "OK", ... }` with uptime info
+3. Access `/api` endpoint
+4. **Expected:** Returns API info with all available endpoints listed
+
+**✅ Pass Criteria:** ALL existing functionality still works after Sprint 1 changes
+
+---
+
 ## 📊 Bug Reporting Format
 
 ### **Use This Format for All Bugs:**
@@ -837,16 +1179,26 @@ Create a Google Sheet with these columns:
 - [ ] GSTIN state code matches selected state (validation)
 - [ ] PAN embedded in GSTIN matches entered PAN (validation)
 - [ ] Future-dated invoices are blocked
+- [ ] Email verification flow works (register → verify → login)
+- [ ] Password reset flow works (forgot → email → reset → login)
+- [ ] Subscription & Pricing page displays correctly
 
 ### **Should Pass (Important):**
 - [ ] All CRUD operations work (Customers, Suppliers, Invoices, Purchases)
 - [ ] Search and filters work (Invoices, Purchases, Customers)
 - [ ] Pagination works on all list pages
 - [ ] All field validations work (GSTIN, PAN, phone, pincode, email)
-- [ ] Settings work (Business Profile, User Profile, Change Password)
+- [ ] Settings work (Business Profile, User Profile, Bank & Filing, Change Password, Notifications)
 - [ ] Duplicate PAN, phone, GSTIN checks work
 - [ ] Invoice actions (PDF, Send Email, Mark as Filed) work
 - [ ] Invoice status lifecycle: Draft → Generated → Sent → Filed
+- [ ] Reverse Charge toggle works on Invoice and Purchase forms
+- [ ] HSN Autocomplete works with search and free text on Invoice and Purchase forms
+- [ ] Compliance Calendar shows correct deadlines with color coding
+- [ ] Bank Details and Filing Frequency persist in Settings
+- [ ] Notification settings persist across page reloads
+- [ ] Razorpay checkout opens (test mode)
+- [ ] Trial subscription auto-starts on registration
 
 ### **Nice to Have:**
 - [ ] Fast performance
@@ -854,7 +1206,9 @@ Create a Google Sheet with these columns:
 - [ ] Mobile responsive
 - [ ] PDF download works
 - [ ] Email sending works
-- [ ] Notification settings work
+- [ ] Payment history displays correctly
+- [ ] Annual/Monthly pricing toggle updates plan cards
+- [ ] Docker deployment works end-to-end
 
 ---
 
@@ -879,7 +1233,7 @@ Create a Google Sheet with these columns:
 
 ### **Before Declaring Testing Complete:**
 
-- [ ] All 80+ test cases executed
+- [ ] All 120+ test cases executed
 - [ ] All critical bugs fixed
 - [ ] All workflows tested end-to-end
 - [ ] GST calculations verified by CA
@@ -900,7 +1254,7 @@ Date: [Date]
 Testing Duration: [X days]
 
 STATISTICS:
-- Total Test Cases: 80+
+- Total Test Cases: 120+
 - Test Cases Passed: __
 - Test Cases Failed: __
 - Pass Rate: __%
@@ -917,14 +1271,19 @@ BUGS FIXED:
 
 MODULES TESTED:
 ✅ Authentication & Registration
+✅ Email Verification
+✅ Password Reset
 ✅ Customer Management
 ✅ Supplier Management
-✅ Invoice Management
-✅ Purchase Management
+✅ Invoice Management (with RCM & HSN Autocomplete)
+✅ Purchase Management (with RCM & HSN Autocomplete)
 ✅ GST Returns (GSTR-1)
 ✅ GST Returns (GSTR-3B)
 ✅ Dashboard & Reports
-✅ Settings
+✅ Settings (Business, User, Bank, Filing, Notifications)
+✅ Subscription & Pricing
+✅ Compliance Calendar
+✅ Regression Testing
 
 CRITICAL FINDINGS:
 1. [Issue 1]
@@ -975,9 +1334,9 @@ STATUS: [ ] APPROVED FOR PRODUCTION  [ ] NEEDS MORE WORK
 
 ---
 
-**Document Version:** 2.0  
-**Last Updated:** February 21, 2026  
-**Next Review:** After Day 5 of testing
+**Document Version:** 3.0  
+**Last Updated:** March 17, 2026  
+**Next Review:** After Day 7 of testing
 
 ---
 

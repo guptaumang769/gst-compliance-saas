@@ -6,8 +6,10 @@
 
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const prisma = require('../config/database');
 const { validateGSTIN, validatePAN, extractStateCode } = require('../utils/gstValidation');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('./emailService');
 
 /**
  * Register a new user with business details
@@ -116,13 +118,40 @@ async function register(userData) {
       return { user, business };
     });
     
-    // 10. Generate JWT token
+    // 10. Generate email verification token and send email
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    await prisma.user.update({
+      where: { id: result.user.id },
+      data: { emailVerificationToken: verificationToken }
+    });
+
+    try {
+      await sendVerificationEmail(email, verificationToken, businessName);
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError.message);
+    }
+
+    // 11. Start trial subscription for the business
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + 14);
+    await prisma.business.update({
+      where: { id: result.business.id },
+      data: {
+        subscriptionPlan: 'trial',
+        subscriptionStatus: 'trial',
+        subscriptionValidUntil: trialEndDate,
+        invoiceLimit: 10,
+        invoiceCountCurrentMonth: 0
+      }
+    });
+
+    // 12. Generate JWT token
     const token = generateToken(result.user);
     
-    // 11. Return user data (without password)
+    // 13. Return user data (without password)
     return {
       success: true,
-      message: 'Registration successful',
+      message: 'Registration successful. Please check your email to verify your account.',
       token,
       user: {
         id: result.user.id,
@@ -249,6 +278,10 @@ async function getUserProfile(userId) {
             pincode: true,
             tradeName: true,
             registrationDate: true,
+            bankName: true,
+            bankAccountNumber: true,
+            bankIfsc: true,
+            bankBranch: true,
           }
         }
       }
@@ -426,6 +459,166 @@ async function updateProfile(userId, profileData) {
   }
 }
 
+/**
+ * Verify email with token
+ */
+async function verifyEmail(token) {
+  if (!token) {
+    throw new Error('Verification token is required');
+  }
+
+  const user = await prisma.user.findFirst({
+    where: { emailVerificationToken: token }
+  });
+
+  if (!user) {
+    throw new Error('Invalid or expired verification token');
+  }
+
+  if (user.emailVerified) {
+    return { success: true, message: 'Email already verified' };
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerified: true,
+      emailVerificationToken: null
+    }
+  });
+
+  return { success: true, message: 'Email verified successfully' };
+}
+
+/**
+ * Resend verification email
+ */
+async function resendVerificationEmail(email) {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { businesses: { select: { businessName: true }, take: 1 } }
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  if (user.emailVerified) {
+    return { success: true, message: 'Email is already verified' };
+  }
+
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { emailVerificationToken: verificationToken }
+  });
+
+  const businessName = user.businesses?.[0]?.businessName || '';
+  await sendVerificationEmail(email, verificationToken, businessName);
+
+  return { success: true, message: 'Verification email sent' };
+}
+
+/**
+ * Request password reset
+ */
+async function forgotPassword(email) {
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user) {
+    return { success: true, message: 'If this email exists, a reset link has been sent.' };
+  }
+
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordResetToken: resetToken,
+      passwordResetExpires: resetExpires
+    }
+  });
+
+  try {
+    await sendPasswordResetEmail(email, resetToken);
+  } catch (emailError) {
+    console.error('Failed to send reset email:', emailError.message);
+  }
+
+  return { success: true, message: 'If this email exists, a reset link has been sent.' };
+}
+
+/**
+ * Reset password with token
+ */
+async function resetPassword(token, newPassword) {
+  if (!token) {
+    throw new Error('Reset token is required');
+  }
+
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error('Password must be at least 8 characters long');
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      passwordResetToken: token,
+      passwordResetExpires: { gt: new Date() }
+    }
+  });
+
+  if (!user) {
+    throw new Error('Invalid or expired reset token');
+  }
+
+  const saltRounds = 10;
+  const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      passwordResetToken: null,
+      passwordResetExpires: null
+    }
+  });
+
+  return { success: true, message: 'Password reset successfully. You can now login with your new password.' };
+}
+
+/**
+ * Update business settings (bank details, filing frequency, notification preferences)
+ */
+async function updateBusinessSettings(userId, settingsData) {
+  const business = await prisma.business.findFirst({
+    where: { userId, isActive: true }
+  });
+
+  if (!business) {
+    throw new Error('No active business found');
+  }
+
+  const updateData = {};
+
+  if (settingsData.bankName !== undefined) updateData.bankName = settingsData.bankName;
+  if (settingsData.bankAccountNumber !== undefined) updateData.bankAccountNumber = settingsData.bankAccountNumber;
+  if (settingsData.bankIfsc !== undefined) updateData.bankIfsc = settingsData.bankIfsc;
+  if (settingsData.bankBranch !== undefined) updateData.bankBranch = settingsData.bankBranch;
+  if (settingsData.filingFrequency !== undefined) updateData.filingFrequency = settingsData.filingFrequency;
+
+  const updated = await prisma.business.update({
+    where: { id: business.id },
+    data: updateData
+  });
+
+  return {
+    success: true,
+    message: 'Settings updated successfully',
+    business: updated
+  };
+}
+
 module.exports = {
   register,
   login,
@@ -433,5 +626,10 @@ module.exports = {
   generateToken,
   verifyToken,
   changePassword,
-  updateProfile
+  updateProfile,
+  verifyEmail,
+  resendVerificationEmail,
+  forgotPassword,
+  resetPassword,
+  updateBusinessSettings
 };

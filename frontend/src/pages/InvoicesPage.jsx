@@ -31,6 +31,8 @@ import {
   Select,
   Autocomplete,
   Tooltip,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Add,
@@ -45,6 +47,7 @@ import {
   RemoveCircleOutline,
   InfoOutlined,
   Gavel,
+  WarningAmber,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -52,6 +55,46 @@ import { invoiceAPI, customerAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import { INVOICE_STATUS_COLORS } from '../utils/constants';
 import { formatCurrency, formatDate } from '../utils/formatters';
+
+const COMMON_HSN_CODES = [
+  { code: '0401', desc: 'Milk and cream', rate: '5%' },
+  { code: '1001', desc: 'Wheat and meslin', rate: '5%' },
+  { code: '1006', desc: 'Rice', rate: '5%' },
+  { code: '1905', desc: 'Bread, pastry, cakes', rate: '18%' },
+  { code: '2201', desc: 'Mineral water', rate: '18%' },
+  { code: '3004', desc: 'Medicaments', rate: '12%' },
+  { code: '3304', desc: 'Beauty/cosmetic preparations', rate: '28%' },
+  { code: '3401', desc: 'Soap', rate: '18%' },
+  { code: '3808', desc: 'Insecticides, fungicides', rate: '18%' },
+  { code: '3901', desc: 'Polymers of ethylene', rate: '18%' },
+  { code: '3926', desc: 'Plastic articles', rate: '18%' },
+  { code: '4819', desc: 'Cartons, boxes of paper', rate: '18%' },
+  { code: '4901', desc: 'Printed books', rate: '0%' },
+  { code: '6109', desc: 'T-shirts, singlets', rate: '5%' },
+  { code: '6204', desc: "Women's suits, jackets", rate: '12%' },
+  { code: '6403', desc: 'Footwear', rate: '18%' },
+  { code: '7308', desc: 'Iron/steel structures', rate: '18%' },
+  { code: '7318', desc: 'Screws, bolts, nuts', rate: '18%' },
+  { code: '8415', desc: 'Air conditioning machines', rate: '28%' },
+  { code: '8418', desc: 'Refrigerators, freezers', rate: '18%' },
+  { code: '8471', desc: 'Computers and peripherals', rate: '18%' },
+  { code: '8504', desc: 'Electrical transformers', rate: '18%' },
+  { code: '8507', desc: 'Electric accumulators/batteries', rate: '28%' },
+  { code: '8517', desc: 'Telephone sets, smartphones', rate: '18%' },
+  { code: '8528', desc: 'Monitors, projectors, TVs', rate: '28%' },
+  { code: '8703', desc: 'Motor cars and vehicles', rate: '28%' },
+  { code: '8711', desc: 'Motorcycles', rate: '28%' },
+  { code: '9401', desc: 'Seats and chairs', rate: '18%' },
+  { code: '9403', desc: 'Furniture', rate: '18%' },
+  { code: '996311', desc: 'Restaurant services (SAC)', rate: '5%' },
+  { code: '997321', desc: 'Accounting/auditing services (SAC)', rate: '18%' },
+  { code: '998311', desc: 'IT consulting services (SAC)', rate: '18%' },
+  { code: '998312', desc: 'IT design & development (SAC)', rate: '18%' },
+  { code: '998313', desc: 'IT infrastructure services (SAC)', rate: '18%' },
+  { code: '998314', desc: 'IT support services (SAC)', rate: '18%' },
+  { code: '998212', desc: 'Freight transport by road (SAC)', rate: '18%' },
+  { code: '997331', desc: 'Legal services (SAC)', rate: '18%' },
+];
 
 // Line Item Schema
 const lineItemSchema = Yup.object({
@@ -174,6 +217,7 @@ export default function InvoicesPage() {
       invoiceDate: new Date().toISOString().split('T')[0],
       dueDate: '',
       notes: '',
+      reverseCharge: false,
       items: [
         {
           description: '',
@@ -249,6 +293,7 @@ export default function InvoicesPage() {
         invoiceDate: invoice.invoiceDate?.split('T')[0] || new Date().toISOString().split('T')[0],
         dueDate: invoice.dueDate?.split('T')[0] || '',
         notes: invoice.notes || '',
+        reverseCharge: invoice.reverseCharge || false,
         items: (invoice.items || []).map(item => ({
           description: item.itemName || item.description || '',
           hsnCode: item.hsnCode || '',
@@ -768,6 +813,27 @@ export default function InvoicesPage() {
                 </Grid>
               )}
 
+              {/* Reverse Charge Toggle */}
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formik.values.reverseCharge}
+                      onChange={(e) => formik.setFieldValue('reverseCharge', e.target.checked)}
+                    />
+                  }
+                  label="Reverse Charge Mechanism (RCM)"
+                />
+                {formik.values.reverseCharge && (
+                  <Alert severity="warning" icon={<WarningAmber />} sx={{ mt: 1 }}>
+                    <Typography variant="body2">
+                      <strong>RCM Applicable:</strong> The recipient (you) is liable to pay GST instead of the supplier.
+                      This will be reported under Section 3.1(d) of GSTR-3B.
+                    </Typography>
+                  </Alert>
+                )}
+              </Grid>
+
               {/* Line Items */}
               <Grid item xs={12}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -815,17 +881,44 @@ export default function InvoicesPage() {
                       </Grid>
 
                       <Grid item xs={6} md={1.5}>
-                        <TextField
-                          fullWidth
-                          label="HSN Code *"
-                          value={item.hsnCode}
-                          onChange={(e) =>
-                            formik.setFieldValue(`items.${index}.hsnCode`, e.target.value)
+                        <Autocomplete
+                          freeSolo
+                          value={item.hsnCode || ''}
+                          onChange={(e, newValue) => {
+                            const code = typeof newValue === 'object' ? newValue?.code : newValue;
+                            formik.setFieldValue(`items.${index}.hsnCode`, code || '');
+                          }}
+                          onInputChange={(e, inputValue) => {
+                            formik.setFieldValue(`items.${index}.hsnCode`, inputValue || '');
+                          }}
+                          options={COMMON_HSN_CODES}
+                          getOptionLabel={(option) =>
+                            typeof option === 'string' ? option : `${option.code} - ${option.desc}`
                           }
-                          onBlur={() => formik.setFieldTouched(`items.${index}.hsnCode`, true)}
-                          error={showItemError(index, 'hsnCode')}
-                          helperText={showItemError(index, 'hsnCode') ? getItemError(index, 'hsnCode') : ''}
-                          size="small"
+                          filterOptions={(options, { inputValue }) =>
+                            options.filter(
+                              (o) =>
+                                o.code.includes(inputValue) ||
+                                o.desc.toLowerCase().includes(inputValue.toLowerCase())
+                            )
+                          }
+                          renderOption={(props, option) => (
+                            <li {...props} key={option.code}>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>{option.code}</Typography>
+                                <Typography variant="caption" color="text.secondary">{option.desc} ({option.rate})</Typography>
+                              </Box>
+                            </li>
+                          )}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="HSN Code *"
+                              size="small"
+                              error={showItemError(index, 'hsnCode')}
+                              helperText={showItemError(index, 'hsnCode') ? getItemError(index, 'hsnCode') : ''}
+                            />
+                          )}
                         />
                       </Grid>
 

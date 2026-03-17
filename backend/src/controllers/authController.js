@@ -235,11 +235,111 @@ async function updateProfile(req, res) {
   }
 }
 
+/**
+ * POST /api/auth/verify-email
+ * Verify email address with token
+ */
+async function verifyEmail(req, res) {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Verification token is required' });
+    }
+
+    const result = await authService.verifyEmail(token);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Verify email error:', error);
+    return res.status(400).json({ success: false, error: error.message || 'Email verification failed' });
+  }
+}
+
+/**
+ * POST /api/auth/resend-verification
+ * Resend verification email
+ */
+async function resendVerification(req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+
+    const result = await authService.resendVerificationEmail(email);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    return res.status(400).json({ success: false, error: error.message || 'Failed to resend verification email' });
+  }
+}
+
+/**
+ * POST /api/auth/forgot-password
+ * Send password reset email
+ */
+async function forgotPassword(req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+
+    const result = await authService.forgotPassword(email);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return res.status(200).json({ success: true, message: 'If this email exists, a reset link has been sent.' });
+  }
+}
+
+/**
+ * POST /api/auth/reset-password
+ * Reset password with token
+ */
+async function resetPassword(req, res) {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Token and new password are required' });
+    }
+
+    const result = await authService.resetPassword(token, newPassword);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return res.status(400).json({ success: false, error: error.message || 'Password reset failed' });
+  }
+}
+
+/**
+ * PUT /api/auth/settings
+ * Update business settings (bank details, filing frequency, etc.)
+ */
+async function updateSettings(req, res) {
+  try {
+    const userId = req.user.userId;
+    const result = await authService.updateBusinessSettings(userId, req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Update settings error:', error);
+    return res.status(400).json({ success: false, error: error.message || 'Failed to update settings' });
+  }
+}
+
 module.exports = {
   register,
   login,
   getProfile,
   logout,
   changePassword,
-  updateProfile
+  updateProfile,
+  verifyEmail,
+  resendVerification,
+  forgotPassword,
+  resetPassword,
+  updateSettings
 };

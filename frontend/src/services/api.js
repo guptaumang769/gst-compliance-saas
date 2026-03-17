@@ -41,6 +41,11 @@ export const authAPI = {
   getProfile: () => api.get('/auth/me'),
   changePassword: (data) => api.post('/auth/change-password', data),
   updateProfile: (data) => api.put('/auth/profile', data),
+  updateSettings: (data) => api.put('/auth/settings', data),
+  verifyEmail: (data) => api.post('/auth/verify-email', data),
+  resendVerification: (data) => api.post('/auth/resend-verification', data),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
 };
 
 // Customer API
@@ -160,13 +165,13 @@ export const gstrAPI = {
 export const paymentAPI = {
   createOrder: (data) => api.post('/payments/create-order', data),
   verifyPayment: (data) => api.post('/payments/verify', data),
-  getAll: (params) => api.get('/payments', { params }),
+  getAll: (params) => api.get('/payments/history', { params }),
 };
 
 // Subscription API
 export const subscriptionAPI = {
   getPlans: () => api.get('/subscriptions/plans'),
-  getCurrent: () => api.get('/subscriptions/current'),
+  getCurrent: () => api.get('/subscriptions/status'),
   getUsage: () => api.get('/subscriptions/usage'),
   checkLimit: (feature) => api.post('/subscriptions/check-limit', { feature }),
 };

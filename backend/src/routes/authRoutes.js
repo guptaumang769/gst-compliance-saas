@@ -9,30 +9,19 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/authMiddleware');
 
-/**
- * Public routes (no authentication required)
- */
-
-// POST /api/auth/register - Register new user
+// Public routes
 router.post('/register', authController.register);
-
-// POST /api/auth/login - Login user
 router.post('/login', authController.login);
+router.post('/verify-email', authController.verifyEmail);
+router.post('/resend-verification', authController.resendVerification);
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password', authController.resetPassword);
 
-/**
- * Protected routes (authentication required)
- */
-
-// GET /api/auth/me - Get current user profile
+// Protected routes
 router.get('/me', authenticateToken, authController.getProfile);
-
-// POST /api/auth/logout - Logout user
 router.post('/logout', authenticateToken, authController.logout);
-
-// POST /api/auth/change-password - Change password
 router.post('/change-password', authenticateToken, authController.changePassword);
-
-// PUT /api/auth/profile - Update user/business profile
 router.put('/profile', authenticateToken, authController.updateProfile);
+router.put('/settings', authenticateToken, authController.updateSettings);
 
 module.exports = router;

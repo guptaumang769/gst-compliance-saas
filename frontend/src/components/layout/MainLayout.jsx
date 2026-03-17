@@ -23,12 +23,14 @@ import {
   People,
   ShoppingCart,
   Assessment,
+  CalendarMonth,
   Settings,
   Notifications,
   Logout,
   AccountCircle,
   Menu as MenuIcon,
   LocalShipping,
+  CardMembership,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 
@@ -39,6 +41,8 @@ const navItems = [
   { label: 'Suppliers', path: '/suppliers', icon: <LocalShipping /> },
   { label: 'Purchases', path: '/purchases', icon: <ShoppingCart /> },
   { label: 'GST Returns', path: '/gst-returns', icon: <Assessment /> },
+  { label: 'Compliance Calendar', path: '/compliance-calendar', icon: <CalendarMonth /> },
+  { label: 'Pricing', path: '/pricing', icon: <CardMembership /> },
 ];
 
 export default function MainLayout({ children }) {
