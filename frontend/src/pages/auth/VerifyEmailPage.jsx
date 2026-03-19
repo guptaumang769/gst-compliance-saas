@@ -49,15 +49,28 @@ export default function VerifyEmailPage() {
     verify();
   }, [token]);
 
+  const [resendMessage, setResendMessage] = useState('');
+  const [alreadyVerified, setAlreadyVerified] = useState(false);
+
   const handleResend = async (e) => {
     e.preventDefault();
     if (!resendEmail) return;
     setResendLoading(true);
     setResendSuccess(false);
+    setAlreadyVerified(false);
+    setResendMessage('');
     try {
-      await api.post('/auth/resend-verification', { email: resendEmail });
-      handleSuccess('Verification email sent. Check your inbox.');
-      setResendSuccess(true);
+      const res = await api.post('/auth/resend-verification', { email: resendEmail });
+      const data = res.data;
+      if (data.alreadyVerified) {
+        setAlreadyVerified(true);
+        setResendMessage(data.message || 'Your email is already verified. You can log in directly.');
+        handleSuccess(data.message || 'Email is already verified.');
+      } else {
+        setResendSuccess(true);
+        setResendMessage(data.message || 'Verification email sent. Check your inbox and spam folder.');
+        handleSuccess('Verification email sent. Check your inbox and spam folder.');
+      }
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -170,9 +183,17 @@ export default function VerifyEmailPage() {
                     required
                     sx={{ '& .MuiOutlinedInput-root': { backgroundColor: 'white' } }}
                   />
-                  {resendSuccess && (
+                  {alreadyVerified && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      {resendMessage || 'Your email is already verified.'}{' '}
+                      <Link component={RouterLink} to="/login" sx={{ fontWeight: 600 }}>
+                        Go to Login
+                      </Link>
+                    </Alert>
+                  )}
+                  {resendSuccess && !alreadyVerified && (
                     <Alert severity="success" sx={{ mt: 2 }}>
-                      Verification email sent. Check your inbox.
+                      {resendMessage || 'Verification email sent. Check your inbox and spam folder.'}
                     </Alert>
                   )}
                   <Button

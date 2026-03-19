@@ -504,13 +504,16 @@ async function resendVerificationEmail(email) {
   });
 
   if (!user) {
+    console.log('[Auth] Resend verification: user not found for email:', email);
     throw new Error('User not found');
   }
 
   if (user.emailVerified) {
-    return { success: true, message: 'Email is already verified' };
+    console.log('[Auth] Resend verification: email already verified for:', email);
+    return { success: true, alreadyVerified: true, message: 'Your email is already verified. You can log in directly.' };
   }
 
+  console.log('[Auth] Resend verification: generating new token for:', email);
   const verificationToken = crypto.randomBytes(32).toString('hex');
   await prisma.user.update({
     where: { id: user.id },
@@ -528,7 +531,7 @@ async function resendVerificationEmail(email) {
     throw new Error('Failed to send verification email. Please try again.');
   }
 
-  return { success: true, message: 'Verification email sent. Please check your inbox and spam folder.' };
+  return { success: true, alreadyVerified: false, message: 'Verification email sent. Please check your inbox and spam folder.' };
 }
 
 /**
