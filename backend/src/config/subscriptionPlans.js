@@ -168,7 +168,14 @@ const SUBSCRIPTION_PLANS = {
  * @returns {Object} - Plan configuration
  */
 function getPlan(planId) {
-  const plan = SUBSCRIPTION_PLANS[planId];
+  const PLAN_ALIASES = {
+    free_trial: 'trial',
+    free: 'trial',
+    basic: 'starter',
+  };
+
+  const resolvedId = PLAN_ALIASES[planId] || planId;
+  const plan = SUBSCRIPTION_PLANS[resolvedId];
   if (!plan) {
     throw new Error(`Invalid plan ID: ${planId}`);
   }

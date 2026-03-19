@@ -15,13 +15,33 @@ const crypto = require('crypto');
 const prisma = require('../config/database');
 const { getPlan, getPlanPrice } = require('../config/subscriptionPlans');
 
-// Initialize Razorpay instance
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET
-});
-
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+function isRazorpayConfigured() {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  return keyId && keySecret
+    && !keyId.includes('xxxx')
+    && !keySecret.includes('xxxx')
+    && keyId.startsWith('rzp_');
+}
+
+let razorpay = null;
+function getRazorpayInstance() {
+  if (!isRazorpayConfigured()) {
+    throw new Error(
+      'Razorpay is not configured. Please set valid RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in your .env file. ' +
+      'You can get test keys from https://dashboard.razorpay.com/app/keys'
+    );
+  }
+  if (!razorpay) {
+    razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET
+    });
+  }
+  return razorpay;
+}
 
 /**
  * Generate unique receipt number
@@ -100,7 +120,8 @@ async function createSubscriptionOrder(businessId, planId, billingCycle = 'month
   }
 
   // Create Razorpay order
-  const razorpayOrder = await razorpay.orders.create({
+  const razorpayInstance = getRazorpayInstance();
+  const razorpayOrder = await razorpayInstance.orders.create({
     amount: amountInPaise,
     currency: 'INR',
     receipt: receiptNumber,
@@ -202,7 +223,8 @@ async function processSuccessfulPayment(paymentData) {
   }
 
   // Fetch payment details from Razorpay
-  const razorpayPayment = await razorpay.payments.fetch(razorpayPaymentId);
+  const razorpayInstance = getRazorpayInstance();
+  const razorpayPayment = await razorpayInstance.payments.fetch(razorpayPaymentId);
 
   // Update payment record
   await prisma.payment.update({
@@ -372,7 +394,8 @@ async function processRefund(paymentId, businessId, refundAmount = null, reason 
   const amountInPaise = Math.round(amountToRefund * 100);
 
   // Create refund in Razorpay
-  const refund = await razorpay.payments.refund(payment.razorpayPaymentId, {
+  const razorpayInstance = getRazorpayInstance();
+  const refund = await razorpayInstance.payments.refund(payment.razorpayPaymentId, {
     amount: amountInPaise,
     notes: {
       reason,

@@ -28,12 +28,19 @@ const EMAIL_CONFIG = {
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.EMAIL_USER;
 const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || 'GST Compliance SaaS';
 
+function isEmailConfigured() {
+  return EMAIL_CONFIG.auth.user
+    && EMAIL_CONFIG.auth.pass
+    && !EMAIL_CONFIG.auth.user.includes('your-email')
+    && !EMAIL_CONFIG.auth.pass.includes('your-app-password');
+}
+
 /**
  * Create email transporter
  */
 function createTransporter() {
-  if (!EMAIL_CONFIG.auth.user || !EMAIL_CONFIG.auth.pass) {
-    throw new Error('Email configuration not set. Please configure EMAIL_USER and EMAIL_PASSWORD in .env file.');
+  if (!isEmailConfigured()) {
+    return null;
   }
 
   return nodemailer.createTransport(EMAIL_CONFIG);
@@ -90,6 +97,13 @@ async function sendInvoiceEmail(invoiceId, businessId, options = {}) {
 
   // Create transporter
   const transporter = createTransporter();
+
+  if (!transporter) {
+    throw new Error(
+      'Email is not configured. Please set EMAIL_USER and EMAIL_PASSWORD in your .env file. ' +
+      'For Gmail, use an App Password (Google Account → Security → 2-Step Verification → App passwords).'
+    );
+  }
 
   // Email options
   const mailOptions = {
@@ -372,8 +386,16 @@ async function verifyEmailConfig() {
  * Send email verification link after registration
  */
 async function sendVerificationEmail(toEmail, verificationToken, businessName) {
-  const transporter = createTransporter();
   const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
+  const transporter = createTransporter();
+
+  if (!transporter) {
+    console.log('\n╔══════════════════════════════════════════════════════════════╗');
+    console.log('║  EMAIL NOT CONFIGURED — Verification link (for testing):   ║');
+    console.log('╚══════════════════════════════════════════════════════════════╝');
+    console.log(`  → ${verifyUrl}\n`);
+    return { success: true, messageId: 'dev-mode', to: toEmail };
+  }
 
   const mailOptions = {
     from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM}>`,
@@ -411,8 +433,16 @@ async function sendVerificationEmail(toEmail, verificationToken, businessName) {
  * Send password reset link
  */
 async function sendPasswordResetEmail(toEmail, resetToken) {
-  const transporter = createTransporter();
   const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+  const transporter = createTransporter();
+
+  if (!transporter) {
+    console.log('\n╔══════════════════════════════════════════════════════════════╗');
+    console.log('║  EMAIL NOT CONFIGURED — Password reset link (for testing): ║');
+    console.log('╚══════════════════════════════════════════════════════════════╝');
+    console.log(`  → ${resetUrl}\n`);
+    return { success: true, messageId: 'dev-mode', to: toEmail };
+  }
 
   const mailOptions = {
     from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM}>`,

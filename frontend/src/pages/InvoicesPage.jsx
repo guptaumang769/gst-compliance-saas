@@ -567,9 +567,14 @@ export default function InvoicesPage() {
                       return (
                         <TableRow key={invoice.id} hover>
                           <TableCell>
-                            <Typography variant="body2" fontWeight={600} fontFamily="monospace">
-                              {invoice.invoiceNumber}
-                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography variant="body2" fontWeight={600} fontFamily="monospace">
+                                {invoice.invoiceNumber}
+                              </Typography>
+                              {invoice.reverseCharge && (
+                                <Chip label="RCM" size="small" color="warning" variant="outlined" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }} />
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2">
