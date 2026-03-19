@@ -193,7 +193,7 @@ function PlanCard({ plan, isAnnual, currentPlanId, onUpgrade, processingPlanId }
           )}
         </Box>
         <Box sx={{ mb: 3 }}>
-          {plan.features.map((feature, idx) => (
+          {(Array.isArray(plan.features) ? plan.features : []).map((feature, idx) => (
             <Box
               key={idx}
               sx={{
@@ -255,17 +255,28 @@ export default function PricingPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [plansRes, subscriptionRes] = await Promise.all([
+      const [plansRes, subscriptionRes] = await Promise.allSettled([
         subscriptionAPI.getPlans(),
         subscriptionAPI.getCurrent(),
       ]);
-      const plansData = plansRes.data?.plans || plansRes.data;
-      if (plansData?.length) {
-        setPlans(plansData);
+
+      if (plansRes.status === 'fulfilled') {
+        const plansData = plansRes.value.data?.plans || plansRes.value.data;
+        if (Array.isArray(plansData) && plansData.length) {
+          const hasArrayFeatures = Array.isArray(plansData[0]?.features);
+          if (hasArrayFeatures) {
+            setPlans(plansData);
+          }
+        }
       }
-      const subData = subscriptionRes.data?.subscription || subscriptionRes.data;
-      if (subData) {
-        setSubscription(subData);
+
+      if (subscriptionRes.status === 'fulfilled') {
+        const subData = subscriptionRes.value.data?.subscription || subscriptionRes.value.data;
+        if (subData) {
+          setSubscription(subData);
+        }
+      } else {
+        console.warn('Subscription fetch failed:', subscriptionRes.reason?.message);
       }
     } catch (err) {
       handleApiError(err, 'Failed to load subscription data');

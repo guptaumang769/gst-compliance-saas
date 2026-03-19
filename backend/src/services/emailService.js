@@ -2,11 +2,10 @@
  * Email Service
  * Sends emails using Nodemailer
  * 
- * Features:
- * - Send invoice emails with PDF attachments
- * - HTML email templates
- * - SMTP configuration
- * - Email tracking
+ * In development (no SMTP configured): Uses Ethereal fake SMTP.
+ * Emails are captured and viewable at https://ethereal.email
+ * 
+ * In production: Uses configured SMTP (Gmail, SendGrid, etc.)
  */
 
 const nodemailer = require('nodemailer');
@@ -14,115 +13,157 @@ const fs = require('fs');
 const path = require('path');
 const prisma = require('../config/database');
 
-// Email configuration from environment variables
-const EMAIL_CONFIG = {
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.EMAIL_PORT) || 587,
-  secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
-  }
-};
-
-const EMAIL_FROM = process.env.EMAIL_FROM || process.env.EMAIL_USER;
 const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || 'GST Compliance SaaS';
 
-function isEmailConfigured() {
-  return EMAIL_CONFIG.auth.user
-    && EMAIL_CONFIG.auth.pass
-    && !EMAIL_CONFIG.auth.user.includes('your-email')
-    && !EMAIL_CONFIG.auth.pass.includes('your-app-password');
+let cachedTransporter = null;
+let transporterMode = null; // 'production' or 'ethereal'
+
+function isSmtpConfigured() {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASSWORD;
+  return user && pass
+    && !user.includes('your-email')
+    && !pass.includes('your-app-password')
+    && user !== ''
+    && pass !== '';
 }
 
 /**
- * Create email transporter
+ * Get or create email transporter.
+ * Falls back to Ethereal test account if SMTP not configured.
  */
-function createTransporter() {
-  if (!isEmailConfigured()) {
+async function getTransporter() {
+  if (cachedTransporter) return cachedTransporter;
+
+  if (isSmtpConfigured()) {
+    transporterMode = 'production';
+    cachedTransporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.EMAIL_PORT) || 587,
+      secure: process.env.EMAIL_SECURE === 'true',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD
+      }
+    });
+    console.log('[Email Service] Using configured SMTP:', process.env.EMAIL_HOST || 'smtp.gmail.com');
+    return cachedTransporter;
+  }
+
+  // Fallback: Create Ethereal test account (free, no signup needed)
+  transporterMode = 'ethereal';
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+    cachedTransporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass
+      }
+    });
+    console.log('\n╔══════════════════════════════════════════════════════════════╗');
+    console.log('║  EMAIL SERVICE: Using Ethereal test account (dev mode)     ║');
+    console.log('║  Emails won\'t be delivered but can be viewed in browser.   ║');
+    console.log('║  Configure EMAIL_USER & EMAIL_PASSWORD in .env for real.   ║');
+    console.log('╚══════════════════════════════════════════════════════════════╝');
+    console.log(`  Ethereal user: ${testAccount.user}`);
+    console.log(`  Ethereal pass: ${testAccount.pass}\n`);
+    return cachedTransporter;
+  } catch (etherealError) {
+    console.error('[Email Service] Failed to create Ethereal account:', etherealError.message);
+    console.log('[Email Service] Falling back to console-only mode.');
+    transporterMode = 'console';
     return null;
   }
+}
 
-  return nodemailer.createTransport(EMAIL_CONFIG);
+function getEmailFrom() {
+  if (transporterMode === 'production') {
+    return `"${EMAIL_FROM_NAME}" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`;
+  }
+  return `"${EMAIL_FROM_NAME}" <noreply@gst-compliance.test>`;
 }
 
 /**
- * Send invoice email with PDF attachment
- * @param {string} invoiceId - Invoice ID
- * @param {string} businessId - Business ID
- * @param {Object} options - Email options (to, subject, message)
- * @returns {Promise<Object>} - Email send result
+ * Send email with auto-fallback.
+ * Returns { success, messageId, previewUrl? }
  */
-async function sendInvoiceEmail(invoiceId, businessId, options = {}) {
-  // Fetch invoice with details
-  const invoice = await prisma.invoice.findFirst({
-    where: {
-      id: invoiceId,
-      businessId,
-      isActive: true
-    },
-    include: {
-      business: true,
-      customer: true
-    }
-  });
+async function sendMail(mailOptions) {
+  const transporter = await getTransporter();
 
-  if (!invoice) {
-    throw new Error('Invoice not found');
+  if (!transporter) {
+    // Console-only fallback (when even Ethereal fails)
+    console.log('\n[Email Service] EMAIL (console-only mode):');
+    console.log(`  To:      ${mailOptions.to}`);
+    console.log(`  Subject: ${mailOptions.subject}`);
+    if (mailOptions._devUrl) {
+      console.log(`  Action URL: ${mailOptions._devUrl}`);
+    }
+    console.log('');
+    return { success: true, messageId: 'console-mode', to: mailOptions.to };
   }
 
-  // Check if PDF exists
+  const info = await transporter.sendMail({
+    from: mailOptions.from || getEmailFrom(),
+    to: mailOptions.to,
+    subject: mailOptions.subject,
+    html: mailOptions.html,
+    attachments: mailOptions.attachments
+  });
+
+  const result = { success: true, messageId: info.messageId, to: mailOptions.to };
+
+  if (transporterMode === 'ethereal') {
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    result.previewUrl = previewUrl;
+    console.log('\n╔══════════════════════════════════════════════════════════════╗');
+    console.log(`║  EMAIL SENT (Ethereal preview — open in browser):          ║`);
+    console.log('╚══════════════════════════════════════════════════════════════╝');
+    console.log(`  To:      ${mailOptions.to}`);
+    console.log(`  Subject: ${mailOptions.subject}`);
+    console.log(`  Preview: ${previewUrl}`);
+    if (mailOptions._devUrl) {
+      console.log(`  Action:  ${mailOptions._devUrl}`);
+    }
+    console.log('');
+  }
+
+  return result;
+}
+
+
+// ─── Email Functions ────────────────────────────────────────────────────────────
+
+async function sendInvoiceEmail(invoiceId, businessId, options = {}) {
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, businessId, isActive: true },
+    include: { business: true, customer: true }
+  });
+
+  if (!invoice) throw new Error('Invoice not found');
   if (!invoice.pdfGenerated || !invoice.pdfFilePath) {
     throw new Error('Invoice PDF not generated. Please generate PDF first.');
   }
-
   if (!fs.existsSync(invoice.pdfFilePath)) {
     throw new Error('Invoice PDF file not found on disk');
   }
 
-  // Determine recipient
   const toEmail = options.to || invoice.customer.email;
-  if (!toEmail) {
-    throw new Error('No recipient email address provided');
-  }
+  if (!toEmail) throw new Error('No recipient email address provided');
 
-  // Email subject
   const subject = options.subject || `Invoice ${invoice.invoiceNumber} from ${invoice.business.businessName}`;
-
-  // Email body (HTML)
   const htmlBody = generateInvoiceEmailHTML(invoice, options.message);
-
-  // PDF filename for attachment
   const pdfFileName = `Invoice_${invoice.invoiceNumber.replace(/\//g, '-')}.pdf`;
 
-  // Create transporter
-  const transporter = createTransporter();
-
-  if (!transporter) {
-    throw new Error(
-      'Email is not configured. Please set EMAIL_USER and EMAIL_PASSWORD in your .env file. ' +
-      'For Gmail, use an App Password (Google Account → Security → 2-Step Verification → App passwords).'
-    );
-  }
-
-  // Email options
-  const mailOptions = {
-    from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM}>`,
+  const info = await sendMail({
     to: toEmail,
     subject,
     html: htmlBody,
-    attachments: [
-      {
-        filename: pdfFileName,
-        path: invoice.pdfFilePath
-      }
-    ]
-  };
+    attachments: [{ filename: pdfFileName, path: invoice.pdfFilePath }]
+  });
 
-  // Send email
-  const info = await transporter.sendMail(mailOptions);
-
-  // Update invoice with email sent info
   await prisma.invoice.update({
     where: { id: invoiceId },
     data: {
@@ -133,18 +174,10 @@ async function sendInvoiceEmail(invoiceId, businessId, options = {}) {
     }
   });
 
-  return {
-    success: true,
-    messageId: info.messageId,
-    to: toEmail,
-    subject,
-    invoiceNumber: invoice.invoiceNumber
-  };
+  return { ...info, subject, invoiceNumber: invoice.invoiceNumber };
 }
 
-/**
- * Generate HTML email template for invoice
- */
+
 function generateInvoiceEmailHTML(invoice, customMessage = null) {
   const { business, customer } = invoice;
   const invoiceAmount = parseFloat(invoice.totalAmount).toLocaleString('en-IN', {
@@ -160,145 +193,39 @@ function generateInvoiceEmailHTML(invoice, customMessage = null) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Invoice from ${business.businessName}</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    .header {
-      background-color: #2563eb;
-      color: white;
-      padding: 20px;
-      text-align: center;
-      border-radius: 8px 8px 0 0;
-    }
-    .content {
-      background-color: #f8f9fa;
-      padding: 30px;
-      border: 1px solid #dee2e6;
-      border-top: none;
-      border-radius: 0 0 8px 8px;
-    }
-    .invoice-details {
-      background-color: white;
-      padding: 20px;
-      border-radius: 8px;
-      margin: 20px 0;
-      border-left: 4px solid #2563eb;
-    }
-    .invoice-details table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    .invoice-details td {
-      padding: 8px 0;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .invoice-details td:first-child {
-      font-weight: bold;
-      width: 40%;
-    }
-    .total-amount {
-      font-size: 24px;
-      color: #16a34a;
-      font-weight: bold;
-      text-align: center;
-      margin: 20px 0;
-      padding: 15px;
-      background-color: #dcfce7;
-      border-radius: 8px;
-    }
-    .button {
-      display: inline-block;
-      background-color: #2563eb;
-      color: white !important;
-      padding: 12px 30px;
-      text-decoration: none;
-      border-radius: 6px;
-      margin: 10px 0;
-      text-align: center;
-    }
-    .footer {
-      text-align: center;
-      margin-top: 30px;
-      padding-top: 20px;
-      border-top: 1px solid #dee2e6;
-      font-size: 12px;
-      color: #6c757d;
-    }
-    .custom-message {
-      background-color: #fff3cd;
-      border-left: 4px solid #ffc107;
-      padding: 15px;
-      margin: 20px 0;
-      border-radius: 4px;
-    }
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background-color: #f8f9fa; padding: 30px; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 8px 8px; }
+    .invoice-details { background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2563eb; }
+    .invoice-details table { width: 100%; border-collapse: collapse; }
+    .invoice-details td { padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
+    .invoice-details td:first-child { font-weight: bold; width: 40%; }
+    .total-amount { font-size: 24px; color: #16a34a; font-weight: bold; text-align: center; margin: 20px 0; padding: 15px; background-color: #dcfce7; border-radius: 8px; }
+    .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 12px; color: #6c757d; }
+    .custom-message { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
   </style>
 </head>
 <body>
   <div class="header">
     <h1 style="margin: 0;">Invoice from ${business.businessName}</h1>
   </div>
-  
   <div class="content">
     <p>Dear ${customer.customerName},</p>
-    
-    ${customMessage ? `
-    <div class="custom-message">
-      <strong>Message:</strong><br>
-      ${customMessage}
-    </div>
-    ` : ''}
-    
+    ${customMessage ? `<div class="custom-message"><strong>Message:</strong><br>${customMessage}</div>` : ''}
     <p>Thank you for your business! Please find your invoice attached to this email.</p>
-    
     <div class="invoice-details">
       <table>
-        <tr>
-          <td>Invoice Number:</td>
-          <td><strong>${invoice.invoiceNumber}</strong></td>
-        </tr>
-        <tr>
-          <td>Invoice Date:</td>
-          <td>${new Date(invoice.invoiceDate).toLocaleDateString('en-IN')}</td>
-        </tr>
-        <tr>
-          <td>Customer:</td>
-          <td>${customer.customerName}</td>
-        </tr>
-        ${customer.gstin ? `
-        <tr>
-          <td>Customer GSTIN:</td>
-          <td>${customer.gstin}</td>
-        </tr>
-        ` : ''}
-        <tr>
-          <td>Invoice Amount:</td>
-          <td><strong>${invoiceAmount}</strong></td>
-        </tr>
+        <tr><td>Invoice Number:</td><td><strong>${invoice.invoiceNumber}</strong></td></tr>
+        <tr><td>Invoice Date:</td><td>${new Date(invoice.invoiceDate).toLocaleDateString('en-IN')}</td></tr>
+        <tr><td>Customer:</td><td>${customer.customerName}</td></tr>
+        ${customer.gstin ? `<tr><td>Customer GSTIN:</td><td>${customer.gstin}</td></tr>` : ''}
+        <tr><td>Invoice Amount:</td><td><strong>${invoiceAmount}</strong></td></tr>
       </table>
     </div>
-    
-    <div class="total-amount">
-      Total: ${invoiceAmount}
-    </div>
-    
-    <p style="text-align: center;">
-      <strong>The invoice PDF is attached to this email.</strong>
-    </p>
-    
-    ${invoice.notes ? `
-    <p style="background-color: #e7f3ff; padding: 15px; border-radius: 6px;">
-      <strong>Notes:</strong><br>
-      ${invoice.notes}
-    </p>
-    ` : ''}
-    
+    <div class="total-amount">Total: ${invoiceAmount}</div>
+    <p style="text-align: center;"><strong>The invoice PDF is attached to this email.</strong></p>
+    ${invoice.notes ? `<p style="background-color: #e7f3ff; padding: 15px; border-radius: 6px;"><strong>Notes:</strong><br>${invoice.notes}</p>` : ''}
     <hr style="margin: 30px 0; border: none; border-top: 1px solid #dee2e6;">
-    
     <p><strong>From:</strong></p>
     <p>
       ${business.businessName}<br>
@@ -309,98 +236,25 @@ function generateInvoiceEmailHTML(invoice, customMessage = null) {
       ${business.phone ? `Phone: ${business.phone}<br>` : ''}
       ${business.email ? `Email: ${business.email}` : ''}
     </p>
-    
-    ${invoice.termsAndConditions ? `
-    <p style="font-size: 12px; color: #6c757d; margin-top: 20px;">
-      <strong>Terms & Conditions:</strong><br>
-      ${invoice.termsAndConditions}
-    </p>
-    ` : ''}
+    ${invoice.termsAndConditions ? `<p style="font-size: 12px; color: #6c757d; margin-top: 20px;"><strong>Terms & Conditions:</strong><br>${invoice.termsAndConditions}</p>` : ''}
   </div>
-  
   <div class="footer">
     <p>This is an automated email. Please do not reply to this message.</p>
     <p>If you have any questions, please contact us at ${business.email || business.phone}</p>
-    <p style="margin-top: 15px;">
-      Powered by <strong>GST Compliance SaaS</strong>
-    </p>
+    <p style="margin-top: 15px;">Powered by <strong>GST Compliance SaaS</strong></p>
   </div>
 </body>
-</html>
-  `.trim();
+</html>`.trim();
 }
 
-/**
- * Send test email (for configuration testing)
- */
-async function sendTestEmail(toEmail) {
-  const transporter = createTransporter();
 
-  const mailOptions = {
-    from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM}>`,
-    to: toEmail,
-    subject: 'Test Email from GST Compliance SaaS',
-    html: `
-      <h2>Email Configuration Test</h2>
-      <p>If you're seeing this, your email configuration is working correctly!</p>
-      <p><strong>Configuration Details:</strong></p>
-      <ul>
-        <li>Host: ${EMAIL_CONFIG.host}</li>
-        <li>Port: ${EMAIL_CONFIG.port}</li>
-        <li>From: ${EMAIL_FROM}</li>
-      </ul>
-      <p>You can now send invoice emails.</p>
-    `
-  };
-
-  const info = await transporter.sendMail(mailOptions);
-
-  return {
-    success: true,
-    messageId: info.messageId,
-    to: toEmail
-  };
-}
-
-/**
- * Verify email configuration
- */
-async function verifyEmailConfig() {
-  try {
-    const transporter = createTransporter();
-    await transporter.verify();
-    return {
-      success: true,
-      message: 'Email configuration is valid and ready to send emails'
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: `Email configuration error: ${error.message}`,
-      error: error.message
-    };
-  }
-}
-
-/**
- * Send email verification link after registration
- */
 async function sendVerificationEmail(toEmail, verificationToken, businessName) {
   const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
-  const transporter = createTransporter();
 
-  if (!transporter) {
-    console.log('\n╔══════════════════════════════════════════════════════════════╗');
-    console.log('║  EMAIL NOT CONFIGURED — Verification link (for testing):   ║');
-    console.log('╚══════════════════════════════════════════════════════════════╝');
-    console.log(`  → ${verifyUrl}\n`);
-    return { success: true, messageId: 'dev-mode', to: toEmail };
-  }
-
-  const mailOptions = {
-    from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM}>`,
+  return sendMail({
     to: toEmail,
     subject: 'Verify your email - GST Compliance SaaS',
+    _devUrl: verifyUrl,
     html: `
 <!DOCTYPE html>
 <html lang="en">
@@ -423,31 +277,17 @@ async function sendVerificationEmail(toEmail, verificationToken, businessName) {
   </div>
 </body>
 </html>`.trim()
-  };
-
-  const info = await transporter.sendMail(mailOptions);
-  return { success: true, messageId: info.messageId, to: toEmail };
+  });
 }
 
-/**
- * Send password reset link
- */
+
 async function sendPasswordResetEmail(toEmail, resetToken) {
   const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
-  const transporter = createTransporter();
 
-  if (!transporter) {
-    console.log('\n╔══════════════════════════════════════════════════════════════╗');
-    console.log('║  EMAIL NOT CONFIGURED — Password reset link (for testing): ║');
-    console.log('╚══════════════════════════════════════════════════════════════╝');
-    console.log(`  → ${resetUrl}\n`);
-    return { success: true, messageId: 'dev-mode', to: toEmail };
-  }
-
-  const mailOptions = {
-    from: `"${EMAIL_FROM_NAME}" <${EMAIL_FROM}>`,
+  return sendMail({
     to: toEmail,
     subject: 'Reset your password - GST Compliance SaaS',
+    _devUrl: resetUrl,
     html: `
 <!DOCTYPE html>
 <html lang="en">
@@ -470,10 +310,45 @@ async function sendPasswordResetEmail(toEmail, resetToken) {
   </div>
 </body>
 </html>`.trim()
-  };
+  });
+}
 
-  const info = await transporter.sendMail(mailOptions);
-  return { success: true, messageId: info.messageId, to: toEmail };
+
+async function sendTestEmail(toEmail) {
+  return sendMail({
+    to: toEmail,
+    subject: 'Test Email from GST Compliance SaaS',
+    html: `
+      <h2>Email Configuration Test</h2>
+      <p>If you're seeing this, your email configuration is working correctly!</p>
+      <p><strong>Mode:</strong> ${transporterMode}</p>
+      <p>You can now send invoice emails.</p>
+    `
+  });
+}
+
+
+async function verifyEmailConfig() {
+  try {
+    const transporter = await getTransporter();
+    if (!transporter) {
+      return { success: false, message: 'No email transporter available' };
+    }
+    await transporter.verify();
+    return {
+      success: true,
+      mode: transporterMode,
+      message: transporterMode === 'ethereal'
+        ? 'Using Ethereal test account. Emails will be captured (not delivered). View at https://ethereal.email'
+        : 'Email configuration is valid and ready to send emails'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Email configuration error: ${error.message}`,
+      error: error.message
+    };
+  }
 }
 
 module.exports = {
