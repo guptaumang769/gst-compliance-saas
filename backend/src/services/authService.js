@@ -518,9 +518,17 @@ async function resendVerificationEmail(email) {
   });
 
   const businessName = user.businesses?.[0]?.businessName || '';
-  await sendVerificationEmail(email, verificationToken, businessName);
+  try {
+    const emailResult = await sendVerificationEmail(email, verificationToken, businessName);
+    console.log('[Auth] Resend verification email sent successfully:', emailResult.messageId);
+  } catch (emailError) {
+    console.error('[Auth] ❌ FAILED to resend verification email:');
+    console.error('[Auth]   Error:', emailError.message);
+    if (emailError.code) console.error('[Auth]   Code:', emailError.code);
+    throw new Error('Failed to send verification email. Please try again.');
+  }
 
-  return { success: true, message: 'Verification email sent' };
+  return { success: true, message: 'Verification email sent. Please check your inbox and spam folder.' };
 }
 
 /**

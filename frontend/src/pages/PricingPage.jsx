@@ -334,13 +334,6 @@ export default function PricingPage() {
         name: 'GST Compliance SaaS',
         description: `${plan.name} - ${isAnnual ? 'Annual' : 'Monthly'} plan`,
         order_id: orderId,
-        method: {
-          upi: true,
-          netbanking: true,
-          card: true,
-          wallet: true,
-          paylater: true,
-        },
         handler: async (response) => {
           try {
             await paymentAPI.verifyPayment({
@@ -363,15 +356,6 @@ export default function PricingPage() {
         },
         theme: {
           color: '#6366F1',
-        },
-        config: {
-          display: {
-            blocks: {
-              utib: { name: 'Pay using UPI', instruments: [{ method: 'upi' }] },
-            },
-            sequence: ['block.utib'],
-            preferences: { show_default_blocks: true },
-          },
         },
       };
 
