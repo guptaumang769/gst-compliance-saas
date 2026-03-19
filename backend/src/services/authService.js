@@ -126,9 +126,13 @@ async function register(userData) {
     });
 
     try {
-      await sendVerificationEmail(email, verificationToken, businessName);
+      const emailResult = await sendVerificationEmail(email, verificationToken, businessName);
+      console.log('[Auth] Verification email sent successfully:', emailResult.messageId);
     } catch (emailError) {
-      console.error('Failed to send verification email:', emailError.message);
+      console.error('[Auth] ❌ FAILED to send verification email:');
+      console.error('[Auth]   Error:', emailError.message);
+      if (emailError.code) console.error('[Auth]   Code:', emailError.code);
+      if (emailError.command) console.error('[Auth]   Command:', emailError.command);
     }
 
     // 11. Start trial subscription for the business
@@ -541,9 +545,13 @@ async function forgotPassword(email) {
   });
 
   try {
-    await sendPasswordResetEmail(email, resetToken);
+    const emailResult = await sendPasswordResetEmail(email, resetToken);
+    console.log('[Auth] Password reset email sent successfully:', emailResult.messageId);
   } catch (emailError) {
-    console.error('Failed to send reset email:', emailError.message);
+    console.error('[Auth] ❌ FAILED to send password reset email:');
+    console.error('[Auth]   Error:', emailError.message);
+    if (emailError.code) console.error('[Auth]   Code:', emailError.code);
+    if (emailError.command) console.error('[Auth]   Command:', emailError.command);
   }
 
   return { success: true, message: 'If this email exists, a reset link has been sent.' };
