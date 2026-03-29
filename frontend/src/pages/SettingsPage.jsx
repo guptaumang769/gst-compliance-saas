@@ -290,6 +290,9 @@ export default function SettingsPage() {
         <Tabs
           value={currentTab}
           onChange={(e, newValue) => setCurrentTab(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
           <Tab icon={<Business />} label="Business Profile" iconPosition="start" />

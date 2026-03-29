@@ -252,7 +252,7 @@ export default function CustomersPage() {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
             Customers
@@ -261,12 +261,13 @@ export default function CustomersPage() {
             Manage your customer database
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button
             variant="outlined"
             startIcon={<FileDownload />}
             onClick={handleExportCSV}
             disabled={customers.length === 0}
+            size="small"
           >
             Export CSV
           </Button>
@@ -275,6 +276,7 @@ export default function CustomersPage() {
             startIcon={<Add />}
             onClick={() => handleOpenDialog()}
             className="gradient-button-primary"
+            size="small"
           >
             Add Customer
           </Button>

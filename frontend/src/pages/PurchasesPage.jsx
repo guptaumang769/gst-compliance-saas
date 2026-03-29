@@ -332,7 +332,7 @@ export default function PurchasesPage() {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
             Purchases
@@ -346,6 +346,7 @@ export default function PurchasesPage() {
           startIcon={<Add />}
           onClick={() => handleOpenDialog()}
           className="gradient-button-primary"
+          size="small"
         >
           Add Purchase
         </Button>

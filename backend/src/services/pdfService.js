@@ -315,51 +315,42 @@ async function generatePDFContent(doc, invoice) {
   // TOTALS SECTION
   // ==========================================
   const totalsLabelX = 350;
-  const totalsValueX = 430;
-  const totalsValueWidth = 115;
-  
+  const totalsAmtX = 435;
+  const totalsAmtW = 110;
+
   const formatAmount = (amount) => {
     const num = parseFloat(amount);
     return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  // Subtotal
-  doc.fontSize(10)
-     .fillColor('#000')
-     .text('Subtotal:', totalsLabelX, yPosition, { width: 80 })
-     .text(formatAmount(invoice.subtotal), totalsValueX, yPosition, { width: totalsValueWidth, align: 'right' });
+  const drawTotalRow = (label, amount, opts = {}) => {
+    const fontSize = opts.fontSize || 10;
+    const color = opts.color || '#000';
+    doc.fontSize(fontSize).fillColor(color);
+    doc.text(label, totalsLabelX, yPosition, { width: 80, lineBreak: false });
+    doc.text(formatAmount(amount), totalsAmtX, yPosition, { width: totalsAmtW, align: 'right', lineBreak: false });
+    yPosition += 18;
+  };
 
-  yPosition += 18;
+  // Subtotal
+  drawTotalRow('Subtotal:', invoice.subtotal);
 
   // GST Breakdown
   const supplyType = invoice.sellerStateCode === invoice.buyerStateCode ? 'Intra-State' : 'Inter-State';
   
   if (supplyType === 'Intra-State') {
-    doc.text('CGST:', totalsLabelX, yPosition, { width: 80 })
-       .text(formatAmount(invoice.cgstAmount), totalsValueX, yPosition, { width: totalsValueWidth, align: 'right' });
-    yPosition += 18;
-
-    doc.text('SGST:', totalsLabelX, yPosition, { width: 80 })
-       .text(formatAmount(invoice.sgstAmount), totalsValueX, yPosition, { width: totalsValueWidth, align: 'right' });
-    yPosition += 18;
+    drawTotalRow('CGST:', invoice.cgstAmount);
+    drawTotalRow('SGST:', invoice.sgstAmount);
   } else {
-    doc.text('IGST:', totalsLabelX, yPosition, { width: 80 })
-       .text(formatAmount(invoice.igstAmount), totalsValueX, yPosition, { width: totalsValueWidth, align: 'right' });
-    yPosition += 18;
+    drawTotalRow('IGST:', invoice.igstAmount);
   }
 
-  // Cess (if applicable)
   if (parseFloat(invoice.cessAmount) > 0) {
-    doc.text('Cess:', totalsLabelX, yPosition, { width: 80 })
-       .text(formatAmount(invoice.cessAmount), totalsValueX, yPosition, { width: totalsValueWidth, align: 'right' });
-    yPosition += 18;
+    drawTotalRow('Cess:', invoice.cessAmount);
   }
 
-  // Round off (if applicable)
   if (parseFloat(invoice.roundOffAmount) !== 0) {
-    doc.text('Round Off:', totalsLabelX, yPosition, { width: 80 })
-       .text(formatAmount(invoice.roundOffAmount), totalsValueX, yPosition, { width: totalsValueWidth, align: 'right' });
-    yPosition += 18;
+    drawTotalRow('Round Off:', invoice.roundOffAmount);
   }
 
   // Total line
@@ -372,10 +363,7 @@ async function generatePDFContent(doc, invoice) {
   yPosition += 10;
 
   // Grand Total
-  doc.fontSize(12)
-     .fillColor(successColor)
-     .text('Total:', totalsLabelX, yPosition, { width: 80 })
-     .text(formatAmount(invoice.totalAmount), totalsValueX, yPosition, { width: totalsValueWidth, align: 'right' });
+  drawTotalRow('Total:', invoice.totalAmount, { fontSize: 12, color: successColor });
 
   yPosition += 30;
 
