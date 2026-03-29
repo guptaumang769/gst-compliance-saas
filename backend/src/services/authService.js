@@ -445,8 +445,8 @@ async function updateProfile(userId, profileData) {
     if (pincode) businessUpdateData.pincode = pincode;
     if (businessType) businessUpdateData.businessType = businessType;
     if (phone !== undefined) {
-      if (phone && !/^\+?[0-9]{10,15}$/.test(phone)) {
-        throw new Error('Invalid phone number. Must be 10-15 digits.');
+      if (phone && !/^[6-9]\d{9}$/.test(phone)) {
+        throw new Error('Invalid phone number. Must be 10 digits starting with 6-9.');
       }
       businessUpdateData.phone = phone;
     }

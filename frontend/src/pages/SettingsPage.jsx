@@ -41,8 +41,7 @@ const businessSchema = Yup.object({
   city: Yup.string().required('City is required'),
   pincode: Yup.string().required('Pincode is required'),
   phone: Yup.string()
-    .matches(/^[0-9+\-() ]*$/, 'Phone number can only contain digits, +, -, (, ) and spaces')
-    .matches(/^$|^\+?[0-9]{10,15}$/, 'Enter a valid phone number (10-15 digits)')
+    .matches(/^[6-9]\d{9}$/, 'Invalid phone number. Must be 10 digits starting with 6-9')
     .nullable(),
 });
 
