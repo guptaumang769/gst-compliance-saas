@@ -40,6 +40,10 @@ const businessSchema = Yup.object({
   addressLine1: Yup.string().required('Address is required'),
   city: Yup.string().required('City is required'),
   pincode: Yup.string().required('Pincode is required'),
+  phone: Yup.string()
+    .matches(/^[0-9+\-() ]*$/, 'Phone number can only contain digits, +, -, (, ) and spaces')
+    .matches(/^$|^\+?[0-9]{10,15}$/, 'Enter a valid phone number (10-15 digits)')
+    .nullable(),
 });
 
 // User Profile Schema
@@ -458,8 +462,12 @@ export default function SettingsPage() {
                     id="phone"
                     name="phone"
                     label="Business Phone"
+                    placeholder="e.g. 9876543210"
                     value={businessFormik.values.phone}
                     onChange={businessFormik.handleChange}
+                    onBlur={businessFormik.handleBlur}
+                    error={businessFormik.touched.phone && Boolean(businessFormik.errors.phone)}
+                    helperText={businessFormik.touched.phone && businessFormik.errors.phone}
                   />
                 </Grid>
 

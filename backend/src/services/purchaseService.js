@@ -354,7 +354,7 @@ async function updatePurchase(purchaseId, businessId, updateData) {
     throw new Error('Cannot update purchase: already filed in GSTR-2');
   }
 
-  const { notes, isPaid, paymentDate, paymentMethod, isItcEligible, itcClaimType, items } = updateData;
+  const { notes, isPaid, paymentDate, paymentMethod, isItcEligible, itcClaimType, items, reverseCharge } = updateData;
 
   // If items are being updated, recalculate GST
   if (items && items.length > 0) {
@@ -471,6 +471,7 @@ async function updatePurchase(purchaseId, businessId, updateData) {
           notes: notes !== undefined ? notes : purchase.notes,
           isPaid: isPaid !== undefined ? isPaid : purchase.isPaid,
           isItcEligible: isItcEligible !== undefined ? isItcEligible : purchase.isItcEligible,
+          reverseCharge: reverseCharge !== undefined ? reverseCharge : purchase.reverseCharge,
         },
         include: {
           supplier: true,
@@ -492,7 +493,8 @@ async function updatePurchase(purchaseId, businessId, updateData) {
       paymentMethod: paymentMethod !== undefined ? paymentMethod : purchase.paymentMethod,
       isItcEligible: isItcEligible !== undefined ? isItcEligible : purchase.isItcEligible,
       itcClaimType: itcClaimType !== undefined ? itcClaimType : purchase.itcClaimType,
-      itcAmount: isItcEligible !== undefined && !isItcEligible ? 0 : purchase.itcAmount
+      itcAmount: isItcEligible !== undefined && !isItcEligible ? 0 : purchase.itcAmount,
+      reverseCharge: reverseCharge !== undefined ? reverseCharge : purchase.reverseCharge
     },
     include: {
       supplier: true,

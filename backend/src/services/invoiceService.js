@@ -448,6 +448,7 @@ async function updateInvoice(invoiceId, businessId, updateData) {
         invoiceDate: updateData.invoiceDate ? new Date(updateData.invoiceDate) : undefined,
         dueDate: updateData.dueDate ? new Date(updateData.dueDate) : undefined,
         notes: updateData.notes !== undefined ? updateData.notes : undefined,
+        reverseCharge: updateData.reverseCharge !== undefined ? updateData.reverseCharge : undefined,
         subtotal: gstCalculation.subtotal,
         taxableAmount: gstCalculation.taxableAmount,
         cgstAmount: gstCalculation.cgstAmount,
@@ -516,6 +517,7 @@ async function updateInvoice(invoiceId, businessId, updateData) {
       if (updateData.notes !== undefined) simpleUpdateData.notes = updateData.notes;
       if (updateData.invoiceDate) simpleUpdateData.invoiceDate = new Date(updateData.invoiceDate);
       if (updateData.dueDate) simpleUpdateData.dueDate = new Date(updateData.dueDate);
+      if (updateData.reverseCharge !== undefined) simpleUpdateData.reverseCharge = updateData.reverseCharge;
       
       if (Object.keys(simpleUpdateData).length > 0) {
         await prisma.invoice.update({

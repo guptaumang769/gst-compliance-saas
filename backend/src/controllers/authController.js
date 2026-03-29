@@ -288,6 +288,9 @@ async function forgotPassword(req, res) {
     }
 
     const result = await authService.forgotPassword(email);
+    if (result.notRegistered) {
+      return res.status(404).json(result);
+    }
     return res.status(200).json(result);
   } catch (error) {
     console.error('Forgot password error:', error);

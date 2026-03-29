@@ -26,6 +26,7 @@ const validationSchema = Yup.object({
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [notRegistered, setNotRegistered] = useState(false);
 
   const formik = useFormik({
     initialValues: { email: '' },
@@ -33,12 +34,18 @@ export default function ForgotPasswordPage() {
     onSubmit: async (values) => {
       setLoading(true);
       setSuccess(false);
+      setNotRegistered(false);
       try {
         await api.post('/auth/forgot-password', { email: values.email });
         handleSuccess('Password reset link sent. Check your email.');
         setSuccess(true);
       } catch (error) {
-        handleApiError(error);
+        const errData = error.response?.data;
+        if (errData?.notRegistered) {
+          setNotRegistered(true);
+        } else {
+          handleApiError(error);
+        }
       } finally {
         setLoading(false);
       }
@@ -118,6 +125,15 @@ export default function ForgotPasswordPage() {
                 Enter your email and we'll send you a reset link
               </Typography>
             </Box>
+
+            {notRegistered && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                No account found with this email address.{' '}
+                <Link component={RouterLink} to="/register" sx={{ fontWeight: 600 }}>
+                  Register here
+                </Link>
+              </Alert>
+            )}
 
             {success ? (
               <Alert severity="success" sx={{ mb: 3 }}>
