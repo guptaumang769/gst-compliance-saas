@@ -137,14 +137,6 @@ export default function MainLayout({ children }) {
               </Typography>
             </Box>
 
-            {/* Mobile Menu Button */}
-            <IconButton
-              onClick={() => setMobileDrawerOpen(true)}
-              sx={{ color: 'white', display: { xs: 'flex', md: 'none' }, mr: 1 }}
-            >
-              <MenuIcon />
-            </IconButton>
-
             {/* Navigation Items (Desktop) */}
             <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' }, gap: 1 }}>
               {navItems.map((item) => (
@@ -190,9 +182,12 @@ export default function MainLayout({ children }) {
                 </IconButton>
               </Tooltip>
 
-              {/* User Menu */}
+              {/* User Menu (Desktop only) */}
               <Tooltip title="Account settings">
-                <IconButton onClick={handleOpenUserMenu} sx={{ p: 0, ml: 1 }}>
+                <IconButton
+                  onClick={handleOpenUserMenu}
+                  sx={{ p: 0, ml: 1, display: { xs: 'none', md: 'flex' } }}
+                >
                   <Avatar
                     sx={{
                       bgcolor: 'rgba(255, 255, 255, 0.2)',
@@ -204,6 +199,14 @@ export default function MainLayout({ children }) {
                   </Avatar>
                 </IconButton>
               </Tooltip>
+
+              {/* Mobile Menu Button */}
+              <IconButton
+                onClick={() => setMobileDrawerOpen(true)}
+                sx={{ color: 'white', display: { xs: 'flex', md: 'none' } }}
+              >
+                <MenuIcon />
+              </IconButton>
             </Box>
           </Toolbar>
         </Container>
@@ -224,9 +227,27 @@ export default function MainLayout({ children }) {
         sx={{ display: { xs: 'block', md: 'none' } }}
       >
         <Box sx={{ px: 2, py: 2.5 }}>
-          <Typography variant="h6" fontWeight={700}>
-            GST Compliance
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+            <Avatar
+              sx={{
+                bgcolor: 'rgba(255, 255, 255, 0.2)',
+                color: 'white',
+                fontWeight: 600,
+                width: 36,
+                height: 36,
+              }}
+            >
+              {user?.name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
+            </Avatar>
+            <Box>
+              <Typography variant="subtitle2" fontWeight={600} noWrap>
+                {user?.name || 'User'}
+              </Typography>
+              <Typography variant="caption" sx={{ opacity: 0.7 }} noWrap>
+                {user?.email}
+              </Typography>
+            </Box>
+          </Box>
         </Box>
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.15)' }} />
         <List sx={{ px: 1, py: 1 }}>
@@ -256,7 +277,16 @@ export default function MainLayout({ children }) {
         </List>
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.15)' }} />
         <List sx={{ px: 1, py: 1 }}>
-          <ListItem disablePadding>
+          <ListItem disablePadding sx={{ mb: 0.5 }}>
+            <ListItemButton
+              onClick={() => { navigate('/profile'); setMobileDrawerOpen(false); }}
+              sx={{ borderRadius: 2, '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } }}
+            >
+              <ListItemIcon sx={{ color: 'white', minWidth: 40 }}><AccountCircle /></ListItemIcon>
+              <ListItemText primary="Profile" />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
               onClick={() => { navigate('/settings'); setMobileDrawerOpen(false); }}
               sx={{ borderRadius: 2, '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } }}

@@ -315,20 +315,29 @@ async function generatePDFContent(doc, invoice) {
   // TOTALS SECTION
   // ==========================================
   const totalsLabelX = 350;
-  const totalsAmtX = 435;
-  const totalsAmtW = 110;
+  const rightEdge = 545;
 
   const formatAmount = (amount) => {
     const num = parseFloat(amount);
-    return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const parts = num.toFixed(2).split('.');
+    const intPart = parts[0];
+    const decPart = parts[1];
+    let lastThree = intPart.slice(-3);
+    const otherNumbers = intPart.slice(0, -3);
+    if (otherNumbers !== '' && otherNumbers !== '-') {
+      lastThree = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + lastThree;
+    }
+    return lastThree + '.' + decPart;
   };
 
   const drawTotalRow = (label, amount, opts = {}) => {
     const fontSize = opts.fontSize || 10;
     const color = opts.color || '#000';
+    const amtStr = formatAmount(amount);
     doc.fontSize(fontSize).fillColor(color);
-    doc.text(label, totalsLabelX, yPosition, { width: 80, lineBreak: false });
-    doc.text(formatAmount(amount), totalsAmtX, yPosition, { width: totalsAmtW, align: 'right', lineBreak: false });
+    doc.text(label, totalsLabelX, yPosition, { lineBreak: false });
+    const amtWidth = doc.widthOfString(amtStr);
+    doc.text(amtStr, rightEdge - amtWidth, yPosition, { lineBreak: false });
     yPosition += 18;
   };
 
