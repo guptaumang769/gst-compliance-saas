@@ -98,12 +98,12 @@ async function generateGSTR3B(businessId, month, year) {
         csamt: 0
       },
       isup_rev: {
-        // Inward supplies liable to reverse charge
-        txval: salesData.reverseChargeValue,
-        iamt: salesData.reverseChargeIGST,
-        camt: salesData.reverseChargeCGST,
-        samt: salesData.reverseChargeSGST,
-        csamt: salesData.reverseChargeCess
+        // Inward supplies liable to reverse charge (from RCM purchases)
+        txval: purchaseData.rcmLiability.taxableValue,
+        iamt: purchaseData.rcmLiability.igst,
+        camt: purchaseData.rcmLiability.cgst,
+        samt: purchaseData.rcmLiability.sgst,
+        csamt: purchaseData.rcmLiability.cess
       },
       osup_nongst: {
         // Non-GST outward supplies
@@ -368,9 +368,32 @@ async function getInputTaxCredit(businessId, periodStart, periodEnd) {
   totalITC.total = totalITC.igst + totalITC.cgst + totalITC.sgst + totalITC.cess;
   totalITC.total = parseFloat(totalITC.total.toFixed(2));
 
+  // RCM liability from ALL RCM purchases (regardless of ITC eligibility)
+  const allRcmPurchases = await prisma.purchase.findMany({
+    where: {
+      businessId,
+      isActive: true,
+      reverseCharge: true,
+      supplierInvoiceDate: { gte: periodStart, lte: periodEnd }
+    }
+  });
+
+  const rcmLiability = { igst: 0, cgst: 0, sgst: 0, cess: 0, taxableValue: 0 };
+  for (const p of allRcmPurchases) {
+    rcmLiability.igst += parseFloat(p.igstAmount);
+    rcmLiability.cgst += parseFloat(p.cgstAmount);
+    rcmLiability.sgst += parseFloat(p.sgstAmount);
+    rcmLiability.cess += parseFloat(p.cessAmount);
+    rcmLiability.taxableValue += parseFloat(p.taxableAmount);
+  }
+  Object.keys(rcmLiability).forEach(k => {
+    rcmLiability[k] = parseFloat(rcmLiability[k].toFixed(2));
+  });
+
   return {
     itc,
-    totalITC
+    totalITC,
+    rcmLiability
   };
 }
 
@@ -379,11 +402,13 @@ async function getInputTaxCredit(businessId, periodStart, periodEnd) {
  * Tax Payable = Output Tax - ITC
  */
 function calculateTaxPayable(salesData, purchaseData) {
+  // Output tax = regular outward supply tax + RCM liability from purchases
+  const rcm = purchaseData.rcmLiability || { igst: 0, cgst: 0, sgst: 0, cess: 0 };
   const outputTax = {
-    igst: salesData.igst + salesData.reverseChargeIGST,
-    cgst: salesData.cgst + salesData.reverseChargeCGST,
-    sgst: salesData.sgst + salesData.reverseChargeSGST,
-    cess: salesData.cess + salesData.reverseChargeCess
+    igst: salesData.igst + rcm.igst,
+    cgst: salesData.cgst + rcm.cgst,
+    sgst: salesData.sgst + rcm.sgst,
+    cess: salesData.cess + rcm.cess
   };
 
   const itc = purchaseData.totalITC;
@@ -397,17 +422,18 @@ function calculateTaxPayable(salesData, purchaseData) {
 
   // If IGST ITC is excess, use it for CGST/SGST
   if (igstPayable < 0) {
-    const excessIGST = Math.abs(igstPayable);
+    let excessIGST = Math.abs(igstPayable);
     igstPayable = 0;
 
-    // Use excess IGST for CGST
+    // Use excess IGST for CGST first
     if (cgstPayable > 0) {
       const usedForCGST = Math.min(cgstPayable, excessIGST);
       cgstPayable -= usedForCGST;
+      excessIGST -= usedForCGST;
     }
 
     // Use remaining excess IGST for SGST
-    if (sgstPayable > 0) {
+    if (sgstPayable > 0 && excessIGST > 0) {
       const usedForSGST = Math.min(sgstPayable, excessIGST);
       sgstPayable -= usedForSGST;
     }
@@ -466,7 +492,11 @@ async function saveGSTR3B(businessId, filingPeriod, year, gstr3bData, taxPayable
     totalTaxLiability: gstr3bData.sup_details.osup_det.iamt + 
                        gstr3bData.sup_details.osup_det.camt + 
                        gstr3bData.sup_details.osup_det.samt + 
-                       gstr3bData.sup_details.osup_det.csamt,
+                       gstr3bData.sup_details.osup_det.csamt +
+                       gstr3bData.sup_details.isup_rev.iamt +
+                       gstr3bData.sup_details.isup_rev.camt +
+                       gstr3bData.sup_details.isup_rev.samt +
+                       gstr3bData.sup_details.isup_rev.csamt,
     totalItc: gstr3bData.itc_elg.itc_avl.reduce((sum, item) => 
       sum + (item.iamt || 0) + (item.camt || 0) + (item.samt || 0) + (item.csamt || 0), 0
     ),

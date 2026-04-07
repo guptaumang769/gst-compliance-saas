@@ -42,7 +42,7 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { customerAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
-import { MESSAGES, INDIAN_STATES, VALIDATION_MESSAGES } from '../utils/constants';
+import { MESSAGES, INDIAN_STATES, VALIDATION_MESSAGES, getStateFromGSTIN } from '../utils/constants';
 import { formatDate } from '../utils/formatters';
 
 // Validation schema - Dynamic based on customer type
@@ -501,7 +501,11 @@ export default function CustomersPage() {
                   name="gstin"
                   label={formik.values.customerType === 'b2b' ? 'GSTIN *' : 'GSTIN (Optional)'}
                   value={formik.values.gstin}
-                  onChange={formik.handleChange}
+                  onChange={(e) => {
+                    formik.handleChange(e);
+                    const state = getStateFromGSTIN(e.target.value);
+                    if (state) formik.setFieldValue('state', state);
+                  }}
                   onBlur={formik.handleBlur}
                   error={formik.touched.gstin && Boolean(formik.errors.gstin)}
                   helperText={formik.touched.gstin && formik.errors.gstin}

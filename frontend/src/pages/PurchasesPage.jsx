@@ -111,6 +111,7 @@ export default function PurchasesPage() {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState(null);
   const [deletingPurchase, setDeletingPurchase] = useState(null);
+  const [viewPurchase, setViewPurchase] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [filterStatus, setFilterStatus] = useState('');
@@ -422,6 +423,7 @@ export default function PurchasesPage() {
                       <TableCell sx={{ fontWeight: 600 }}>Total</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>ITC</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Filed</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -437,7 +439,13 @@ export default function PurchasesPage() {
                         <TableRow key={purchase.id} hover>
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Typography variant="body2" fontWeight={600} fontFamily="monospace">
+                              <Typography
+                                variant="body2"
+                                fontWeight={600}
+                                fontFamily="monospace"
+                                sx={{ cursor: 'pointer', color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}
+                                onClick={() => setViewPurchase(purchase)}
+                              >
                                 {purchase.supplierInvoiceNumber}
                               </Typography>
                               {purchase.reverseCharge && (
@@ -494,7 +502,34 @@ export default function PurchasesPage() {
                             />
                           </TableCell>
                           <TableCell>
+                            <Chip
+                              label={purchase.filedInGstr2 ? 'Filed' : 'Not Filed'}
+                              size="small"
+                              color={purchase.filedInGstr2 ? 'info' : 'default'}
+                              variant={purchase.filedInGstr2 ? 'filled' : 'outlined'}
+                              onClick={async () => {
+                                try {
+                                  await purchaseAPI.markAsFiled(purchase.id, { filed: !purchase.filedInGstr2 });
+                                  handleSuccess(purchase.filedInGstr2 ? 'Marked as unfiled' : 'Marked as filed');
+                                  fetchPurchases();
+                                } catch (err) {
+                                  handleApiError(err, 'Failed to update filing status');
+                                }
+                              }}
+                              sx={{ cursor: 'pointer' }}
+                            />
+                          </TableCell>
+                          <TableCell>
                             <Box sx={{ display: 'flex', gap: 0.5 }}>
+                              <Tooltip title="View Details">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => setViewPurchase(purchase)}
+                                  color="info"
+                                >
+                                  <InfoOutlined fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
                               <Tooltip title={purchase.isPaid ? 'Mark as Unpaid' : 'Mark as Paid'}>
                                 <IconButton
                                   size="small"
@@ -946,6 +981,140 @@ export default function PurchasesPage() {
             Delete
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* View Purchase Detail Dialog */}
+      <Dialog
+        open={Boolean(viewPurchase)}
+        onClose={() => setViewPurchase(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        {viewPurchase && (
+          <>
+            <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <Typography variant="h6">Purchase Details</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Invoice #{viewPurchase.supplierInvoiceNumber}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {viewPurchase.reverseCharge && <Chip label="RCM" size="small" color="warning" />}
+                <Chip label={viewPurchase.isPaid ? 'Paid' : 'Pending'} size="small" color={viewPurchase.isPaid ? 'success' : 'warning'} />
+                {viewPurchase.filedInGstr2 && <Chip label="Filed in GSTR-2" size="small" color="info" />}
+              </Box>
+            </DialogTitle>
+            <DialogContent dividers>
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">Supplier</Typography>
+                  <Typography variant="body2" fontWeight={600}>{viewPurchase.supplier?.supplierName || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">GSTIN</Typography>
+                  <Typography variant="body2" fontFamily="monospace">{viewPurchase.supplier?.gstin || '-'}</Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">Invoice Date</Typography>
+                  <Typography variant="body2">{formatDate(viewPurchase.supplierInvoiceDate)}</Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">Purchase Type</Typography>
+                  <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>{viewPurchase.purchaseType || 'goods'}</Typography>
+                </Grid>
+              </Grid>
+
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="subtitle2" gutterBottom>Line Items</Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Item</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>HSN/SAC</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Qty</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Rate</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">GST%</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Tax</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Amount</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(viewPurchase.items || []).map((item, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>{idx + 1}</TableCell>
+                        <TableCell>{item.itemName || item.description}</TableCell>
+                        <TableCell>{item.hsnCode || item.sacCode || '-'}</TableCell>
+                        <TableCell align="right">{parseFloat(item.quantity).toFixed(2)}</TableCell>
+                        <TableCell align="right">{formatCurrency(item.unitPrice)}</TableCell>
+                        <TableCell align="right">{item.gstRate}%</TableCell>
+                        <TableCell align="right">{formatCurrency((item.cgstAmount || 0) + (item.sgstAmount || 0) + (item.igstAmount || 0))}</TableCell>
+                        <TableCell align="right">{formatCurrency(item.totalAmount)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              <Divider sx={{ my: 2 }} />
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  {viewPurchase.notes && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Notes</Typography>
+                      <Typography variant="body2">{viewPurchase.notes}</Typography>
+                    </Box>
+                  )}
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="caption" color="text.secondary">ITC Eligible</Typography>
+                    <Typography variant="body2" color={viewPurchase.isItcEligible ? 'success.main' : 'error.main'} fontWeight={600}>
+                      {viewPurchase.isItcEligible ? `Yes - ${formatCurrency(viewPurchase.itcAmount || 0)}` : 'No'}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Card sx={{ bgcolor: '#f0f7ff', p: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Typography variant="body2">Taxable Amount:</Typography>
+                      <Typography variant="body2" fontWeight={600}>{formatCurrency(viewPurchase.taxableAmount || viewPurchase.subtotal || 0)}</Typography>
+                    </Box>
+                    {(viewPurchase.cgstAmount > 0 || viewPurchase.sgstAmount > 0) && (
+                      <>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography variant="body2">CGST:</Typography>
+                          <Typography variant="body2">{formatCurrency(viewPurchase.cgstAmount || 0)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography variant="body2">SGST:</Typography>
+                          <Typography variant="body2">{formatCurrency(viewPurchase.sgstAmount || 0)}</Typography>
+                        </Box>
+                      </>
+                    )}
+                    {viewPurchase.igstAmount > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography variant="body2">IGST:</Typography>
+                        <Typography variant="body2">{formatCurrency(viewPurchase.igstAmount || 0)}</Typography>
+                      </Box>
+                    )}
+                    <Divider sx={{ my: 1 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="subtitle2">Total:</Typography>
+                      <Typography variant="subtitle2" color="primary" fontWeight={700}>{formatCurrency(viewPurchase.totalAmount)}</Typography>
+                    </Box>
+                  </Card>
+                </Grid>
+              </Grid>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setViewPurchase(null)}>Close</Button>
+              <Button variant="contained" onClick={() => { setViewPurchase(null); handleOpenDialog(viewPurchase); }}>
+                Edit
+              </Button>
+            </DialogActions>
+          </>
+        )}
       </Dialog>
     </Box>
   );

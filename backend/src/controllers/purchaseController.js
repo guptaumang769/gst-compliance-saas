@@ -370,6 +370,49 @@ async function markPurchaseAsPaid(req, res) {
   }
 }
 
+async function markPurchaseAsFiled(req, res) {
+  try {
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({ success: false, message: 'No active business found' });
+    }
+
+    const purchase = await prisma.purchase.findFirst({
+      where: { id: req.params.id, businessId: business.id, isActive: true }
+    });
+
+    if (!purchase) {
+      return res.status(404).json({ success: false, message: 'Purchase not found' });
+    }
+
+    const { filed } = req.body;
+    const nowMonth = new Date().toISOString().slice(0, 7);
+
+    const updatedPurchase = await prisma.purchase.update({
+      where: { id: req.params.id },
+      data: {
+        filedInGstr2: filed !== false,
+        gstr2FilingMonth: filed !== false ? nowMonth : null,
+      },
+      include: { items: true, supplier: true }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: filed !== false ? 'Purchase marked as filed' : 'Purchase marked as unfiled',
+      data: updatedPurchase
+    });
+  } catch (error) {
+    console.error('Mark purchase as filed error:', error);
+    res.status(400).json({ success: false, message: error.message || 'Failed to update filing status' });
+  }
+}
+
 module.exports = {
   createPurchase,
   getPurchases,
@@ -378,5 +421,6 @@ module.exports = {
   deletePurchase,
   getPurchaseStats,
   calculateItcForPeriod,
-  markPurchaseAsPaid
+  markPurchaseAsPaid,
+  markPurchaseAsFiled
 };

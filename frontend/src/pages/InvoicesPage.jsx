@@ -1013,9 +1013,25 @@ export default function InvoicesPage() {
                         />
                       </Grid>
 
-                      <Grid item xs={10} md={1}>
+                      <Grid item xs={6} md={0.8}>
+                        <Typography variant="caption" color="primary" fontWeight={600}>
+                          {formatCurrency((() => {
+                            const sub = (item.quantity || 0) * (item.unitPrice || 0);
+                            const disc = (sub * (item.discount || 0)) / 100;
+                            return ((sub - disc) * (item.gstRate || 0)) / 100;
+                          })())}
+                        </Typography>
+                        <Typography variant="caption" display="block" color="text.disabled" fontSize="0.6rem">
+                          Tax
+                        </Typography>
+                      </Grid>
+
+                      <Grid item xs={6} md={0.8}>
                         <Typography variant="caption" color="text.secondary" fontWeight={600}>
                           {formatCurrency(calculateItemTotal(item))}
+                        </Typography>
+                        <Typography variant="caption" display="block" color="text.disabled" fontSize="0.6rem">
+                          Total
                         </Typography>
                       </Grid>
 
