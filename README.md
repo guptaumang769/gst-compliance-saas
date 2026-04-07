@@ -8,7 +8,7 @@ A comprehensive SaaS platform to help Indian SMEs manage GST compliance easily. 
 
 ---
 
-## 📂 Project Structure
+## 📂 Project Structure 
 
 ```
 gst-compliance-saas/
