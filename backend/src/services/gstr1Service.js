@@ -66,15 +66,34 @@ async function generateGSTR1(businessId, month, year) {
     orderBy: { invoiceDate: 'asc' }
   });
 
+  // Get credit/debit notes for the period
+  const creditDebitNotes = await prisma.creditDebitNote.findMany({
+    where: {
+      businessId,
+      isActive: true,
+      noteDate: {
+        gte: periodStart,
+        lte: periodEnd
+      }
+    },
+    include: {
+      customer: true,
+      items: true
+    },
+    orderBy: { noteDate: 'asc' }
+  });
+
   // Generate GSTR-1 sections
   const b2b = await generateB2B(invoices, business);
   const b2cl = await generateB2CL(invoices, business);
   const b2cs = await generateB2CS(invoices, business);
   const exp = await generateEXP(invoices, business);
   const hsn = await generateHSN(invoices, business);
+  const cdnr = await generateCDNR(creditDebitNotes, business);
+  const cdnur = await generateCDNUR(creditDebitNotes, business);
 
-  // Calculate summary
-  const summary = calculateSummary(invoices);
+  // Calculate summary (include credit/debit notes)
+  const summary = calculateSummary(invoices, creditDebitNotes);
 
   // Prepare complete GSTR-1 data
   const gstr1Data = {
@@ -89,6 +108,8 @@ async function generateGSTR1(businessId, month, year) {
     b2cs: b2cs.data,
     exp: exp.data,
     hsn: hsn.data,
+    cdnr: cdnr.data,
+    cdnur: cdnur.data,
     
     // Summary counters
     summary: {
@@ -97,13 +118,17 @@ async function generateGSTR1(businessId, month, year) {
       b2clInvoices: b2cl.count,
       b2csInvoices: b2cs.count,
       exportInvoices: exp.count,
+      creditNotes: cdnr.creditNoteCount + cdnur.creditNoteCount,
+      debitNotes: cdnr.debitNoteCount + cdnur.debitNoteCount,
       totalTaxableValue: summary.totalTaxableValue,
       totalCGST: summary.totalCGST,
       totalSGST: summary.totalSGST,
       totalIGST: summary.totalIGST,
       totalCess: summary.totalCess,
       totalTax: summary.totalTax,
-      totalInvoiceValue: summary.totalInvoiceValue
+      totalInvoiceValue: summary.totalInvoiceValue,
+      cdnrTaxableValue: cdnr.totalTaxableValue,
+      cdnurTaxableValue: cdnur.totalTaxableValue
     }
   };
 
@@ -386,9 +411,183 @@ function groupItemsByRate(items) {
 }
 
 /**
- * Calculate summary totals
+ * Generate CDNR section (Credit/Debit Notes for Registered customers)
+ * Format: Customer-wise notes with GSTIN
  */
-function calculateSummary(invoices) {
+async function generateCDNR(creditDebitNotes, business) {
+  const cdnrNotes = creditDebitNotes.filter(note => note.customer?.gstin);
+
+  // Group by customer GSTIN
+  const customerGroups = {};
+  let creditNoteCount = 0;
+  let debitNoteCount = 0;
+  let totalTaxableValue = 0;
+
+  for (const note of cdnrNotes) {
+    const ctin = note.customer.gstin;
+
+    if (!customerGroups[ctin]) {
+      customerGroups[ctin] = {
+        ctin, // Customer GSTIN
+        cname: note.customer.customerName,
+        nt: []
+      };
+    }
+
+    // Note details
+    const noteData = {
+      ntty: note.noteType === 'credit' ? 'C' : 'D', // Note Type: C = Credit, D = Debit
+      nt_num: note.noteNumber, // Note Number
+      nt_dt: formatDate(note.noteDate), // Note Date
+      val: parseFloat(note.totalAmount), // Note Value
+      pos: note.buyerStateCode || note.customer.stateCode, // Place of Supply
+      rchrg: 'N', // Reverse Charge (N for credit/debit notes)
+      
+      // Original Invoice Details (if linked)
+      inum: note.originalInvoiceNumber || '',
+      idt: note.originalInvoiceDate ? formatDate(note.originalInvoiceDate) : '',
+      
+      // Reason
+      rsn: getReasonCode(note.reason),
+      
+      // Item details (rate-wise)
+      itms: groupNoteItemsByRate(note.items)
+    };
+
+    customerGroups[ctin].nt.push(noteData);
+
+    if (note.noteType === 'credit') {
+      creditNoteCount++;
+    } else {
+      debitNoteCount++;
+    }
+    totalTaxableValue += parseFloat(note.taxableAmount);
+  }
+
+  return {
+    data: Object.values(customerGroups),
+    count: cdnrNotes.length,
+    creditNoteCount,
+    debitNoteCount,
+    totalTaxableValue: parseFloat(totalTaxableValue.toFixed(2))
+  };
+}
+
+/**
+ * Generate CDNUR section (Credit/Debit Notes for Unregistered customers)
+ * Notes for B2CL supplies (invoice value > ₹2.5 lakh)
+ */
+async function generateCDNUR(creditDebitNotes, business) {
+  // CDNUR applies to notes for unregistered customers where original invoice was B2CL (> ₹2.5 lakh)
+  const cdnurNotes = creditDebitNotes.filter(note => 
+    !note.customer?.gstin && 
+    parseFloat(note.totalAmount) > 250000
+  );
+
+  let creditNoteCount = 0;
+  let debitNoteCount = 0;
+  let totalTaxableValue = 0;
+
+  const cdnurData = cdnurNotes.map(note => {
+    if (note.noteType === 'credit') {
+      creditNoteCount++;
+    } else {
+      debitNoteCount++;
+    }
+    totalTaxableValue += parseFloat(note.taxableAmount);
+
+    return {
+      ntty: note.noteType === 'credit' ? 'C' : 'D',
+      nt_num: note.noteNumber,
+      nt_dt: formatDate(note.noteDate),
+      val: parseFloat(note.totalAmount),
+      pos: note.buyerStateCode || business.stateCode,
+      
+      // Original Invoice Details
+      inum: note.originalInvoiceNumber || '',
+      idt: note.originalInvoiceDate ? formatDate(note.originalInvoiceDate) : '',
+      
+      // Reason
+      rsn: getReasonCode(note.reason),
+      
+      // Item details
+      itms: groupNoteItemsByRate(note.items)
+    };
+  });
+
+  return {
+    data: cdnurData,
+    count: cdnurNotes.length,
+    creditNoteCount,
+    debitNoteCount,
+    totalTaxableValue: parseFloat(totalTaxableValue.toFixed(2))
+  };
+}
+
+/**
+ * Get GST Portal reason code from internal reason
+ */
+function getReasonCode(reason) {
+  const reasonMap = {
+    'goods_return': '01-Sales Return',
+    'price_reduction': '02-Post Sale Discount',
+    'deficiency_in_service': '03-Deficiency in services',
+    'change_in_value': '04-Change in POS',
+    'post_sale_discount': '02-Post Sale Discount',
+    'correction': '05-Change in Value',
+    'other': '07-Others'
+  };
+  return reasonMap[reason] || '07-Others';
+}
+
+/**
+ * Group credit/debit note items by tax rate
+ */
+function groupNoteItemsByRate(items) {
+  const rateGroups = {};
+
+  for (const item of items) {
+    const rate = parseFloat(item.gstRate);
+    
+    if (!rateGroups[rate]) {
+      rateGroups[rate] = {
+        num: Object.keys(rateGroups).length + 1,
+        itm_det: {
+          rt: rate,
+          txval: 0,
+          iamt: 0,
+          camt: 0,
+          samt: 0,
+          csamt: 0
+        }
+      };
+    }
+
+    rateGroups[rate].itm_det.txval += parseFloat(item.taxableAmount);
+    rateGroups[rate].itm_det.iamt += parseFloat(item.igstAmount || 0);
+    rateGroups[rate].itm_det.camt += parseFloat(item.cgstAmount || 0);
+    rateGroups[rate].itm_det.samt += parseFloat(item.sgstAmount || 0);
+    rateGroups[rate].itm_det.csamt += parseFloat(item.cessAmount || 0);
+  }
+
+  return Object.values(rateGroups).map(group => ({
+    ...group,
+    itm_det: {
+      ...group.itm_det,
+      txval: parseFloat(group.itm_det.txval.toFixed(2)),
+      iamt: parseFloat(group.itm_det.iamt.toFixed(2)),
+      camt: parseFloat(group.itm_det.camt.toFixed(2)),
+      samt: parseFloat(group.itm_det.samt.toFixed(2)),
+      csamt: parseFloat(group.itm_det.csamt.toFixed(2))
+    }
+  }));
+}
+
+/**
+ * Calculate summary totals
+ * Credit notes reduce turnover, debit notes increase turnover
+ */
+function calculateSummary(invoices, creditDebitNotes = []) {
   let totalTaxableValue = 0;
   let totalCGST = 0;
   let totalSGST = 0;
@@ -396,6 +595,7 @@ function calculateSummary(invoices) {
   let totalCess = 0;
   let totalInvoiceValue = 0;
 
+  // Add invoice amounts
   for (const invoice of invoices) {
     totalTaxableValue += parseFloat(invoice.taxableAmount);
     totalCGST += parseFloat(invoice.cgstAmount);
@@ -403,6 +603,17 @@ function calculateSummary(invoices) {
     totalIGST += parseFloat(invoice.igstAmount);
     totalCess += parseFloat(invoice.cessAmount);
     totalInvoiceValue += parseFloat(invoice.totalAmount);
+  }
+
+  // Adjust for credit/debit notes
+  for (const note of creditDebitNotes) {
+    const multiplier = note.noteType === 'credit' ? -1 : 1;
+    totalTaxableValue += multiplier * parseFloat(note.taxableAmount);
+    totalCGST += multiplier * parseFloat(note.cgstAmount || 0);
+    totalSGST += multiplier * parseFloat(note.sgstAmount || 0);
+    totalIGST += multiplier * parseFloat(note.igstAmount || 0);
+    totalCess += multiplier * parseFloat(note.cessAmount || 0);
+    totalInvoiceValue += multiplier * parseFloat(note.totalAmount);
   }
 
   const totalTax = totalCGST + totalSGST + totalIGST + totalCess;

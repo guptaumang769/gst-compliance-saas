@@ -184,4 +184,13 @@ export const subscriptionAPI = {
   checkLimit: (feature) => api.post('/subscriptions/check-limit', { feature }),
 };
 
+// Credit/Debit Note API
+export const creditDebitNoteAPI = {
+  getAll: (params) => api.get('/credit-debit-notes', { params }),
+  getById: (id) => api.get(`/credit-debit-notes/${id}`),
+  create: (data) => api.post('/credit-debit-notes', data),
+  update: (id, data) => api.put(`/credit-debit-notes/${id}`, data),
+  delete: (id) => api.delete(`/credit-debit-notes/${id}`),
+};
+
 export default api;

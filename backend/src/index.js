@@ -53,6 +53,7 @@ app.get('/api', (req, res) => {
       dashboard: '/api/dashboard ✅',
       gstr1: '/api/gstr1 ✅',
       gstr3b: '/api/gstr3b ✅',
+      creditDebitNotes: '/api/credit-debit-notes ✅',
       subscriptions: '/api/subscriptions ✅ NEW',
       payments: '/api/payments ✅ NEW',
       webhooks: '/api/webhooks ✅ NEW'
@@ -84,6 +85,7 @@ app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 // ============================================
 app.use('/api/gstr1', require('./routes/gstr1Routes'));
 app.use('/api/gstr3b', require('./routes/gstr3bRoutes'));
+app.use('/api/credit-debit-notes', require('./routes/creditDebitNoteRoutes'));
 
 // ============================================
 // API Routes - Week 11-12: Subscription & Payments

@@ -16,6 +16,7 @@ import ComplianceCalendarPage from './pages/ComplianceCalendarPage';
 import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 import PricingPage from './pages/PricingPage';
+import CreditDebitNotesPage from './pages/CreditDebitNotesPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -141,6 +142,14 @@ function App() {
         element={
           <ProtectedRoute>
             <GSTReturnsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/credit-debit-notes"
+        element={
+          <ProtectedRoute>
+            <CreditDebitNotesPage />
           </ProtectedRoute>
         }
       />
