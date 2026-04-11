@@ -384,7 +384,89 @@ async function generatePDFContent(doc, invoice) {
      .fillColor(secondaryColor)
      .text(`${amountInWords} Only`, { width: 495 });
 
-  yPosition += 30;
+  yPosition += 25;
+
+  // ==========================================
+  // HSN SUMMARY TABLE
+  // ==========================================
+  const hsnMap = {};
+  items.forEach(item => {
+    const hsn = item.hsnCode || item.sacCode || 'N/A';
+    const rate = parseFloat(item.gstRate);
+    const key = `${hsn}_${rate}`;
+    if (!hsnMap[key]) {
+      hsnMap[key] = { hsn, rate, taxableValue: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, totalTax: 0 };
+    }
+    hsnMap[key].taxableValue += parseFloat(item.taxableAmount);
+    hsnMap[key].cgst += parseFloat(item.cgstAmount || 0);
+    hsnMap[key].sgst += parseFloat(item.sgstAmount || 0);
+    hsnMap[key].igst += parseFloat(item.igstAmount || 0);
+    hsnMap[key].cess += parseFloat(item.cessAmount || 0);
+    hsnMap[key].totalTax += parseFloat(item.cgstAmount || 0) + parseFloat(item.sgstAmount || 0) + parseFloat(item.igstAmount || 0) + parseFloat(item.cessAmount || 0);
+  });
+  const hsnRows = Object.values(hsnMap);
+
+  if (hsnRows.length > 0) {
+    if (yPosition > 620) {
+      doc.addPage();
+      yPosition = 50;
+    }
+
+    doc.fontSize(10)
+       .fillColor(primaryColor)
+       .text('HSN/SAC Summary', 50, yPosition);
+    yPosition += 18;
+
+    const hsnHeaders = supplyType === 'Intra-State'
+      ? [
+          { text: 'HSN/SAC', x: 50, w: 80 },
+          { text: 'Taxable Value', x: 130, w: 80 },
+          { text: 'CGST', x: 210, w: 70 },
+          { text: 'SGST', x: 280, w: 70 },
+          { text: 'Cess', x: 350, w: 55 },
+          { text: 'Total Tax', x: 405, w: 70 },
+        ]
+      : [
+          { text: 'HSN/SAC', x: 50, w: 80 },
+          { text: 'Taxable Value', x: 130, w: 95 },
+          { text: 'IGST', x: 225, w: 85 },
+          { text: 'Cess', x: 310, w: 65 },
+          { text: 'Total Tax', x: 375, w: 80 },
+        ];
+
+    doc.rect(50, yPosition, 495, 18).fillColor('#e8eaf6').fill();
+    doc.fillColor('#333').fontSize(8);
+    hsnHeaders.forEach(h => {
+      doc.text(h.text, h.x, yPosition + 4, { width: h.w, align: h.x === 50 ? 'left' : 'right', lineBreak: false });
+    });
+    yPosition += 22;
+
+    doc.fillColor('#000').fontSize(8);
+    hsnRows.forEach(row => {
+      if (yPosition > 740) {
+        doc.addPage();
+        yPosition = 50;
+      }
+      if (supplyType === 'Intra-State') {
+        doc.text(row.hsn, 50, yPosition, { width: 80, lineBreak: false });
+        doc.text(formatAmount(row.taxableValue), 130, yPosition, { width: 80, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.cgst), 210, yPosition, { width: 70, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.sgst), 280, yPosition, { width: 70, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.cess), 350, yPosition, { width: 55, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.totalTax), 405, yPosition, { width: 70, align: 'right', lineBreak: false });
+      } else {
+        doc.text(row.hsn, 50, yPosition, { width: 80, lineBreak: false });
+        doc.text(formatAmount(row.taxableValue), 130, yPosition, { width: 95, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.igst), 225, yPosition, { width: 85, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.cess), 310, yPosition, { width: 65, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.totalTax), 375, yPosition, { width: 80, align: 'right', lineBreak: false });
+      }
+      yPosition += 15;
+    });
+
+    doc.moveTo(50, yPosition).lineTo(545, yPosition).strokeColor('#ccc').lineWidth(0.5).stroke();
+    yPosition += 20;
+  }
 
   // ==========================================
   // TERMS & CONDITIONS
