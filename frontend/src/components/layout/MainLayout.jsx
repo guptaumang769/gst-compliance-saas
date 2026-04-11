@@ -35,6 +35,7 @@ import {
   Menu as MenuIcon,
   LocalShipping,
   CardMembership,
+  NoteAdd,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 
@@ -44,6 +45,7 @@ const navItems = [
   { label: 'Customers', path: '/customers', icon: <People /> },
   { label: 'Suppliers', path: '/suppliers', icon: <LocalShipping /> },
   { label: 'Purchases', path: '/purchases', icon: <ShoppingCart /> },
+  { label: 'CN/DN', path: '/credit-debit-notes', icon: <NoteAdd /> },
   { label: 'GST Returns', path: '/gst-returns', icon: <Assessment /> },
   { label: 'Compliance Calendar', path: '/compliance-calendar', icon: <CalendarMonth /> },
   { label: 'Pricing', path: '/pricing', icon: <CardMembership /> },
