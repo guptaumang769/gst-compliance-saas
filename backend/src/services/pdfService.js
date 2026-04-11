@@ -187,27 +187,31 @@ async function generatePDFContent(doc, invoice) {
      .fillColor('#000')
      .text(customer.customerName, 50, yPosition);
 
-  yPosition += 15;
+  yPosition += 18;
 
   doc.fontSize(9)
-     .fillColor(secondaryColor)
-     .text(customer.billingAddress, 50, yPosition, { width: 250 });
+     .fillColor(secondaryColor);
 
-  yPosition += 12;
+  if (customer.billingAddress) {
+    const addrHeight = doc.heightOfString(customer.billingAddress, { width: 250 });
+    doc.text(customer.billingAddress, 50, yPosition, { width: 250 });
+    yPosition += addrHeight + 4;
+  }
+
   doc.text(`${customer.city}, ${customer.state} - ${customer.pincode}`, 50, yPosition);
+  yPosition += 14;
 
   if (customer.gstin) {
-    yPosition += 12;
     doc.text(`GSTIN: ${customer.gstin}`, 50, yPosition);
+    yPosition += 14;
   }
 
   if (customer.phone) {
-    yPosition += 12;
     doc.text(`Phone: ${customer.phone}`, 50, yPosition);
+    yPosition += 14;
   }
 
   if (customer.email) {
-    yPosition += 12;
     doc.text(`Email: ${customer.email}`, 50, yPosition);
   }
 
@@ -310,52 +314,56 @@ async function generatePDFContent(doc, invoice) {
   // ==========================================
   // TOTALS SECTION
   // ==========================================
-  const totalsX = 380;
-  
-  // Subtotal
-  doc.fontSize(10)
-     .fillColor('#000')
-     .text('Subtotal:', totalsX, yPosition)
-     .text(`₹${parseFloat(invoice.subtotal).toFixed(2)}`, 475, yPosition, { width: 70, align: 'right' });
+  const totalsLabelX = 350;
+  const rightEdge = 545;
 
-  yPosition += 18;
+  const formatAmount = (amount) => {
+    const num = parseFloat(amount);
+    const parts = num.toFixed(2).split('.');
+    const intPart = parts[0];
+    const decPart = parts[1];
+    let lastThree = intPart.slice(-3);
+    const otherNumbers = intPart.slice(0, -3);
+    if (otherNumbers !== '' && otherNumbers !== '-') {
+      lastThree = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + lastThree;
+    }
+    return lastThree + '.' + decPart;
+  };
+
+  const drawTotalRow = (label, amount, opts = {}) => {
+    const fontSize = opts.fontSize || 10;
+    const color = opts.color || '#000';
+    const amtStr = formatAmount(amount);
+    doc.fontSize(fontSize).fillColor(color);
+    doc.text(label, totalsLabelX, yPosition, { lineBreak: false });
+    const amtWidth = doc.widthOfString(amtStr);
+    doc.text(amtStr, rightEdge - amtWidth, yPosition, { lineBreak: false });
+    yPosition += 18;
+  };
+
+  // Subtotal
+  drawTotalRow('Subtotal:', invoice.subtotal);
 
   // GST Breakdown
   const supplyType = invoice.sellerStateCode === invoice.buyerStateCode ? 'Intra-State' : 'Inter-State';
   
   if (supplyType === 'Intra-State') {
-    // CGST
-    doc.text(`CGST:`, totalsX, yPosition)
-       .text(`₹${parseFloat(invoice.cgstAmount).toFixed(2)}`, 475, yPosition, { width: 70, align: 'right' });
-    yPosition += 18;
-
-    // SGST
-    doc.text(`SGST:`, totalsX, yPosition)
-       .text(`₹${parseFloat(invoice.sgstAmount).toFixed(2)}`, 475, yPosition, { width: 70, align: 'right' });
-    yPosition += 18;
+    drawTotalRow('CGST:', invoice.cgstAmount);
+    drawTotalRow('SGST:', invoice.sgstAmount);
   } else {
-    // IGST
-    doc.text(`IGST:`, totalsX, yPosition)
-       .text(`₹${parseFloat(invoice.igstAmount).toFixed(2)}`, 475, yPosition, { width: 70, align: 'right' });
-    yPosition += 18;
+    drawTotalRow('IGST:', invoice.igstAmount);
   }
 
-  // Cess (if applicable)
   if (parseFloat(invoice.cessAmount) > 0) {
-    doc.text(`Cess:`, totalsX, yPosition)
-       .text(`₹${parseFloat(invoice.cessAmount).toFixed(2)}`, 475, yPosition, { width: 70, align: 'right' });
-    yPosition += 18;
+    drawTotalRow('Cess:', invoice.cessAmount);
   }
 
-  // Round off (if applicable)
   if (parseFloat(invoice.roundOffAmount) !== 0) {
-    doc.text(`Round Off:`, totalsX, yPosition)
-       .text(`₹${parseFloat(invoice.roundOffAmount).toFixed(2)}`, 475, yPosition, { width: 70, align: 'right' });
-    yPosition += 18;
+    drawTotalRow('Round Off:', invoice.roundOffAmount);
   }
 
   // Total line
-  doc.moveTo(totalsX, yPosition)
+  doc.moveTo(totalsLabelX, yPosition)
      .lineTo(545, yPosition)
      .strokeColor(primaryColor)
      .lineWidth(1)
@@ -364,10 +372,7 @@ async function generatePDFContent(doc, invoice) {
   yPosition += 10;
 
   // Grand Total
-  doc.fontSize(12)
-     .fillColor(successColor)
-     .text('Total:', totalsX, yPosition)
-     .text(`₹${parseFloat(invoice.totalAmount).toFixed(2)}`, 475, yPosition, { width: 70, align: 'right' });
+  drawTotalRow('Total:', invoice.totalAmount, { fontSize: 12, color: successColor });
 
   yPosition += 30;
 
@@ -379,7 +384,89 @@ async function generatePDFContent(doc, invoice) {
      .fillColor(secondaryColor)
      .text(`${amountInWords} Only`, { width: 495 });
 
-  yPosition += 30;
+  yPosition += 25;
+
+  // ==========================================
+  // HSN SUMMARY TABLE
+  // ==========================================
+  const hsnMap = {};
+  items.forEach(item => {
+    const hsn = item.hsnCode || item.sacCode || 'N/A';
+    const rate = parseFloat(item.gstRate);
+    const key = `${hsn}_${rate}`;
+    if (!hsnMap[key]) {
+      hsnMap[key] = { hsn, rate, taxableValue: 0, cgst: 0, sgst: 0, igst: 0, cess: 0, totalTax: 0 };
+    }
+    hsnMap[key].taxableValue += parseFloat(item.taxableAmount);
+    hsnMap[key].cgst += parseFloat(item.cgstAmount || 0);
+    hsnMap[key].sgst += parseFloat(item.sgstAmount || 0);
+    hsnMap[key].igst += parseFloat(item.igstAmount || 0);
+    hsnMap[key].cess += parseFloat(item.cessAmount || 0);
+    hsnMap[key].totalTax += parseFloat(item.cgstAmount || 0) + parseFloat(item.sgstAmount || 0) + parseFloat(item.igstAmount || 0) + parseFloat(item.cessAmount || 0);
+  });
+  const hsnRows = Object.values(hsnMap);
+
+  if (hsnRows.length > 0) {
+    if (yPosition > 620) {
+      doc.addPage();
+      yPosition = 50;
+    }
+
+    doc.fontSize(10)
+       .fillColor(primaryColor)
+       .text('HSN/SAC Summary', 50, yPosition);
+    yPosition += 18;
+
+    const hsnHeaders = supplyType === 'Intra-State'
+      ? [
+          { text: 'HSN/SAC', x: 50, w: 80 },
+          { text: 'Taxable Value', x: 130, w: 80 },
+          { text: 'CGST', x: 210, w: 70 },
+          { text: 'SGST', x: 280, w: 70 },
+          { text: 'Cess', x: 350, w: 55 },
+          { text: 'Total Tax', x: 405, w: 70 },
+        ]
+      : [
+          { text: 'HSN/SAC', x: 50, w: 80 },
+          { text: 'Taxable Value', x: 130, w: 95 },
+          { text: 'IGST', x: 225, w: 85 },
+          { text: 'Cess', x: 310, w: 65 },
+          { text: 'Total Tax', x: 375, w: 80 },
+        ];
+
+    doc.rect(50, yPosition, 495, 18).fillColor('#e8eaf6').fill();
+    doc.fillColor('#333').fontSize(8);
+    hsnHeaders.forEach(h => {
+      doc.text(h.text, h.x, yPosition + 4, { width: h.w, align: h.x === 50 ? 'left' : 'right', lineBreak: false });
+    });
+    yPosition += 22;
+
+    doc.fillColor('#000').fontSize(8);
+    hsnRows.forEach(row => {
+      if (yPosition > 740) {
+        doc.addPage();
+        yPosition = 50;
+      }
+      if (supplyType === 'Intra-State') {
+        doc.text(row.hsn, 50, yPosition, { width: 80, lineBreak: false });
+        doc.text(formatAmount(row.taxableValue), 130, yPosition, { width: 80, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.cgst), 210, yPosition, { width: 70, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.sgst), 280, yPosition, { width: 70, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.cess), 350, yPosition, { width: 55, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.totalTax), 405, yPosition, { width: 70, align: 'right', lineBreak: false });
+      } else {
+        doc.text(row.hsn, 50, yPosition, { width: 80, lineBreak: false });
+        doc.text(formatAmount(row.taxableValue), 130, yPosition, { width: 95, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.igst), 225, yPosition, { width: 85, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.cess), 310, yPosition, { width: 65, align: 'right', lineBreak: false });
+        doc.text(formatAmount(row.totalTax), 375, yPosition, { width: 80, align: 'right', lineBreak: false });
+      }
+      yPosition += 15;
+    });
+
+    doc.moveTo(50, yPosition).lineTo(545, yPosition).strokeColor('#ccc').lineWidth(0.5).stroke();
+    yPosition += 20;
+  }
 
   // ==========================================
   // TERMS & CONDITIONS

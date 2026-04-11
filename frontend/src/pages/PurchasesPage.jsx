@@ -31,6 +31,8 @@ import {
   Select,
   Divider,
   Tooltip,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Add,
@@ -51,6 +53,31 @@ import { purchaseAPI, supplierAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
+const COMMON_HSN_CODES = [
+  { code: '0401', desc: 'Milk and cream', rate: '5%' },
+  { code: '1001', desc: 'Wheat and meslin', rate: '5%' },
+  { code: '1006', desc: 'Rice', rate: '5%' },
+  { code: '3004', desc: 'Medicaments', rate: '12%' },
+  { code: '3901', desc: 'Polymers of ethylene', rate: '18%' },
+  { code: '3926', desc: 'Plastic articles', rate: '18%' },
+  { code: '4819', desc: 'Cartons, boxes of paper', rate: '18%' },
+  { code: '7308', desc: 'Iron/steel structures', rate: '18%' },
+  { code: '7318', desc: 'Screws, bolts, nuts', rate: '18%' },
+  { code: '8415', desc: 'Air conditioning machines', rate: '28%' },
+  { code: '8418', desc: 'Refrigerators, freezers', rate: '18%' },
+  { code: '8471', desc: 'Computers and peripherals', rate: '18%' },
+  { code: '8504', desc: 'Electrical transformers', rate: '18%' },
+  { code: '8517', desc: 'Telephone sets, smartphones', rate: '18%' },
+  { code: '8703', desc: 'Motor cars and vehicles', rate: '28%' },
+  { code: '9401', desc: 'Seats and chairs', rate: '18%' },
+  { code: '9403', desc: 'Furniture', rate: '18%' },
+  { code: '998311', desc: 'IT consulting services (SAC)', rate: '18%' },
+  { code: '998312', desc: 'IT design & development (SAC)', rate: '18%' },
+  { code: '997321', desc: 'Accounting/auditing services (SAC)', rate: '18%' },
+  { code: '998212', desc: 'Freight transport by road (SAC)', rate: '18%' },
+  { code: '997331', desc: 'Legal services (SAC)', rate: '18%' },
+];
+
 const purchaseSchema = Yup.object({
   supplierId: Yup.string().required('Supplier is required'),
   supplierInvoiceNumber: Yup.string().required('Supplier invoice number is required'),
@@ -61,14 +88,12 @@ const purchaseSchema = Yup.object({
 // Derive purchase status
 const getPurchaseStatus = (purchase) => {
   if (purchase.isPaid) return 'Paid';
-  if (purchase.dueDate && new Date(purchase.dueDate) < new Date()) return 'Overdue';
   return 'Pending';
 };
 
 const getPurchaseStatusColor = (status) => {
   switch (status) {
     case 'Paid': return 'success';
-    case 'Overdue': return 'error';
     case 'Pending': return 'warning';
     default: return 'default';
   }
@@ -86,6 +111,7 @@ export default function PurchasesPage() {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState(null);
   const [deletingPurchase, setDeletingPurchase] = useState(null);
+  const [viewPurchase, setViewPurchase] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [filterStatus, setFilterStatus] = useState('');
@@ -134,6 +160,7 @@ export default function PurchasesPage() {
       supplierInvoiceDate: new Date().toISOString().split('T')[0],
       dueDate: '',
       notes: '',
+      reverseCharge: false,
       items: [
         {
           description: '',
@@ -188,6 +215,7 @@ export default function PurchasesPage() {
         supplierInvoiceDate: purchase.supplierInvoiceDate?.split('T')[0] || new Date().toISOString().split('T')[0],
         dueDate: purchase.dueDate?.split('T')[0] || '',
         notes: purchase.notes || '',
+        reverseCharge: purchase.reverseCharge || false,
         items: (purchase.items || []).map(item => ({
           description: item.itemName || item.description || '',
           hsnCode: item.hsnCode || '',
@@ -305,7 +333,7 @@ export default function PurchasesPage() {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
             Purchases
@@ -319,6 +347,7 @@ export default function PurchasesPage() {
           startIcon={<Add />}
           onClick={() => handleOpenDialog()}
           className="gradient-button-primary"
+          size="small"
         >
           Add Purchase
         </Button>
@@ -360,7 +389,6 @@ export default function PurchasesPage() {
                   <MenuItem value="">All</MenuItem>
                   <MenuItem value="pending">Pending</MenuItem>
                   <MenuItem value="paid">Paid</MenuItem>
-                  <MenuItem value="overdue">Overdue</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -395,6 +423,7 @@ export default function PurchasesPage() {
                       <TableCell sx={{ fontWeight: 600 }}>Total</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>ITC</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Filed</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -409,9 +438,20 @@ export default function PurchasesPage() {
                       return (
                         <TableRow key={purchase.id} hover>
                           <TableCell>
-                            <Typography variant="body2" fontWeight={600} fontFamily="monospace">
-                              {purchase.supplierInvoiceNumber}
-                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography
+                                variant="body2"
+                                fontWeight={600}
+                                fontFamily="monospace"
+                                sx={{ cursor: 'pointer', color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}
+                                onClick={() => setViewPurchase(purchase)}
+                              >
+                                {purchase.supplierInvoiceNumber}
+                              </Typography>
+                              {purchase.reverseCharge && (
+                                <Chip label="RCM" size="small" color="warning" variant="outlined" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }} />
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2">
@@ -462,7 +502,34 @@ export default function PurchasesPage() {
                             />
                           </TableCell>
                           <TableCell>
+                            <Chip
+                              label={purchase.filedInGstr2 ? 'Filed' : 'Not Filed'}
+                              size="small"
+                              color={purchase.filedInGstr2 ? 'info' : 'default'}
+                              variant={purchase.filedInGstr2 ? 'filled' : 'outlined'}
+                              onClick={async () => {
+                                try {
+                                  await purchaseAPI.markAsFiled(purchase.id, { filed: !purchase.filedInGstr2 });
+                                  handleSuccess(purchase.filedInGstr2 ? 'Marked as unfiled' : 'Marked as filed');
+                                  fetchPurchases();
+                                } catch (err) {
+                                  handleApiError(err, 'Failed to update filing status');
+                                }
+                              }}
+                              sx={{ cursor: 'pointer' }}
+                            />
+                          </TableCell>
+                          <TableCell>
                             <Box sx={{ display: 'flex', gap: 0.5 }}>
+                              <Tooltip title="View Details">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => setViewPurchase(purchase)}
+                                  color="info"
+                                >
+                                  <InfoOutlined fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
                               <Tooltip title={purchase.isPaid ? 'Mark as Unpaid' : 'Mark as Paid'}>
                                 <IconButton
                                   size="small"
@@ -658,6 +725,27 @@ export default function PurchasesPage() {
                 </Grid>
               )}
 
+              {/* Reverse Charge Toggle */}
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formik.values.reverseCharge || (isUnregisteredSupplier && formik.values.reverseCharge)}
+                      onChange={(e) => formik.setFieldValue('reverseCharge', e.target.checked)}
+                    />
+                  }
+                  label="Reverse Charge Mechanism (RCM)"
+                />
+                {(formik.values.reverseCharge || isUnregisteredSupplier) && (
+                  <Alert severity="info" sx={{ mt: 1 }}>
+                    <Typography variant="body2">
+                      <strong>RCM Applied:</strong> You (the buyer) are liable to pay GST directly to the government.
+                      This will be reported under Section 3.1(d) of GSTR-3B and ITC can be claimed under Section 4(A)(3).
+                    </Typography>
+                  </Alert>
+                )}
+              </Grid>
+
               {/* Line Items */}
               <Grid item xs={12}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -688,14 +776,38 @@ export default function PurchasesPage() {
                       </Grid>
 
                       <Grid item xs={6} md={1.5}>
-                        <TextField
-                          fullWidth
-                          label="HSN Code"
-                          value={item.hsnCode}
-                          onChange={(e) =>
-                            formik.setFieldValue(`items.${index}.hsnCode`, e.target.value)
+                        <Autocomplete
+                          freeSolo
+                          value={item.hsnCode || ''}
+                          onChange={(e, newValue) => {
+                            const code = typeof newValue === 'object' ? newValue?.code : newValue;
+                            formik.setFieldValue(`items.${index}.hsnCode`, code || '');
+                          }}
+                          onInputChange={(e, inputValue) => {
+                            formik.setFieldValue(`items.${index}.hsnCode`, inputValue || '');
+                          }}
+                          options={COMMON_HSN_CODES}
+                          getOptionLabel={(option) =>
+                            typeof option === 'string' ? option : `${option.code} - ${option.desc}`
                           }
-                          size="small"
+                          filterOptions={(options, { inputValue }) =>
+                            options.filter(
+                              (o) =>
+                                o.code.includes(inputValue) ||
+                                o.desc.toLowerCase().includes(inputValue.toLowerCase())
+                            )
+                          }
+                          renderOption={(props, option) => (
+                            <li {...props} key={option.code}>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>{option.code}</Typography>
+                                <Typography variant="caption" color="text.secondary">{option.desc} ({option.rate})</Typography>
+                              </Box>
+                            </li>
+                          )}
+                          renderInput={(params) => (
+                            <TextField {...params} label="HSN Code" size="small" />
+                          )}
                         />
                       </Grid>
 
@@ -869,6 +981,140 @@ export default function PurchasesPage() {
             Delete
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* View Purchase Detail Dialog */}
+      <Dialog
+        open={Boolean(viewPurchase)}
+        onClose={() => setViewPurchase(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        {viewPurchase && (
+          <>
+            <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <Typography variant="h6">Purchase Details</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Invoice #{viewPurchase.supplierInvoiceNumber}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {viewPurchase.reverseCharge && <Chip label="RCM" size="small" color="warning" />}
+                <Chip label={viewPurchase.isPaid ? 'Paid' : 'Pending'} size="small" color={viewPurchase.isPaid ? 'success' : 'warning'} />
+                {viewPurchase.filedInGstr2 && <Chip label="Filed in GSTR-2" size="small" color="info" />}
+              </Box>
+            </DialogTitle>
+            <DialogContent dividers>
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">Supplier</Typography>
+                  <Typography variant="body2" fontWeight={600}>{viewPurchase.supplier?.supplierName || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">GSTIN</Typography>
+                  <Typography variant="body2" fontFamily="monospace">{viewPurchase.supplier?.gstin || '-'}</Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">Invoice Date</Typography>
+                  <Typography variant="body2">{formatDate(viewPurchase.supplierInvoiceDate)}</Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">Purchase Type</Typography>
+                  <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>{viewPurchase.purchaseType || 'goods'}</Typography>
+                </Grid>
+              </Grid>
+
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="subtitle2" gutterBottom>Line Items</Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Item</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>HSN/SAC</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Qty</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Rate</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">GST%</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Tax</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Amount</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(viewPurchase.items || []).map((item, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>{idx + 1}</TableCell>
+                        <TableCell>{item.itemName || item.description}</TableCell>
+                        <TableCell>{item.hsnCode || item.sacCode || '-'}</TableCell>
+                        <TableCell align="right">{parseFloat(item.quantity).toFixed(2)}</TableCell>
+                        <TableCell align="right">{formatCurrency(item.unitPrice)}</TableCell>
+                        <TableCell align="right">{item.gstRate}%</TableCell>
+                        <TableCell align="right">{formatCurrency((item.cgstAmount || 0) + (item.sgstAmount || 0) + (item.igstAmount || 0))}</TableCell>
+                        <TableCell align="right">{formatCurrency(item.totalAmount)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              <Divider sx={{ my: 2 }} />
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  {viewPurchase.notes && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Notes</Typography>
+                      <Typography variant="body2">{viewPurchase.notes}</Typography>
+                    </Box>
+                  )}
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="caption" color="text.secondary">ITC Eligible</Typography>
+                    <Typography variant="body2" color={viewPurchase.isItcEligible ? 'success.main' : 'error.main'} fontWeight={600}>
+                      {viewPurchase.isItcEligible ? `Yes - ${formatCurrency(viewPurchase.itcAmount || 0)}` : 'No'}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Card sx={{ bgcolor: '#f0f7ff', p: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Typography variant="body2">Taxable Amount:</Typography>
+                      <Typography variant="body2" fontWeight={600}>{formatCurrency(viewPurchase.taxableAmount || viewPurchase.subtotal || 0)}</Typography>
+                    </Box>
+                    {(viewPurchase.cgstAmount > 0 || viewPurchase.sgstAmount > 0) && (
+                      <>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography variant="body2">CGST:</Typography>
+                          <Typography variant="body2">{formatCurrency(viewPurchase.cgstAmount || 0)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography variant="body2">SGST:</Typography>
+                          <Typography variant="body2">{formatCurrency(viewPurchase.sgstAmount || 0)}</Typography>
+                        </Box>
+                      </>
+                    )}
+                    {viewPurchase.igstAmount > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography variant="body2">IGST:</Typography>
+                        <Typography variant="body2">{formatCurrency(viewPurchase.igstAmount || 0)}</Typography>
+                      </Box>
+                    )}
+                    <Divider sx={{ my: 1 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="subtitle2">Total:</Typography>
+                      <Typography variant="subtitle2" color="primary" fontWeight={700}>{formatCurrency(viewPurchase.totalAmount)}</Typography>
+                    </Box>
+                  </Card>
+                </Grid>
+              </Grid>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setViewPurchase(null)}>Close</Button>
+              <Button variant="contained" onClick={() => { setViewPurchase(null); handleOpenDialog(viewPurchase); }}>
+                Edit
+              </Button>
+            </DialogActions>
+          </>
+        )}
       </Dialog>
     </Box>
   );

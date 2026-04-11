@@ -18,6 +18,8 @@ import {
   Avatar,
   LinearProgress,
   Alert,
+  TextField,
+  MenuItem,
 } from '@mui/material';
 import {
   TrendingUp,
@@ -104,6 +106,15 @@ function StatCard({ title, value, change, icon, color, trend, loading }) {
   );
 }
 
+const monthsList = [
+  { value: 1, label: 'January' }, { value: 2, label: 'February' },
+  { value: 3, label: 'March' }, { value: 4, label: 'April' },
+  { value: 5, label: 'May' }, { value: 6, label: 'June' },
+  { value: 7, label: 'July' }, { value: 8, label: 'August' },
+  { value: 9, label: 'September' }, { value: 10, label: 'October' },
+  { value: 11, label: 'November' }, { value: 12, label: 'December' },
+];
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -111,37 +122,34 @@ export default function DashboardPage() {
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
   const [recentInvoices, setRecentInvoices] = useState([]);
+  const [revenueTrendData, setRevenueTrendData] = useState([]);
+
+  // Period selector
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   useEffect(() => {
-    console.log('🔐 Current user:', user);
-    console.log('🔑 Auth token:', localStorage.getItem('token'));
     fetchDashboardData();
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
-
-      console.log('🔍 Fetching dashboard data...', { month: currentMonth, year: currentYear });
-
-      const [summaryRes, invoicesRes] = await Promise.all([
-        dashboardAPI.getSummary({ month: currentMonth, year: currentYear }),
+      const [summaryRes, invoicesRes, trendRes] = await Promise.all([
+        dashboardAPI.getSummary({ month: selectedMonth, year: selectedYear }),
         invoiceAPI.getAll({ limit: 5, sortBy: 'invoiceDate', order: 'desc' }),
+        dashboardAPI.getSummary({ month: selectedMonth, year: selectedYear })
+          .then(() => fetchRevenueTrend())
+          .catch(() => []),
       ]);
-
-      console.log('✅ Dashboard API Response:', summaryRes.data);
-      console.log('✅ Invoices API Response:', invoicesRes.data);
 
       setDashboardData(summaryRes.data);
       setRecentInvoices(invoicesRes.data.invoices || []);
     } catch (err) {
-      console.error('❌ Dashboard API Error:', err);
-      console.error('❌ Error Response:', err.response?.data);
+      console.error('Dashboard API Error:', err);
       const errorMessage = handleApiError(err, MESSAGES.ERROR_LOADING_DATA);
       setError(errorMessage);
     } finally {
@@ -149,7 +157,43 @@ export default function DashboardPage() {
     }
   };
 
-  // Derive invoice status from available fields (since Invoice model has no 'status' field)
+  const fetchRevenueTrend = async () => {
+    try {
+      // Fetch data for the last 6 months relative to the selected period
+      const trendMonths = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(selectedYear, selectedMonth - 1 - i, 1);
+        trendMonths.push({ month: d.getMonth() + 1, year: d.getFullYear() });
+      }
+
+      const trendResults = await Promise.all(
+        trendMonths.map(({ month, year }) =>
+          dashboardAPI.getSummary({ month, year })
+            .then(res => ({
+              month: new Date(year, month - 1).toLocaleString('default', { month: 'short' }),
+              year,
+              monthNum: month,
+              revenue: res.data?.data?.sales?.totalRevenue || 0,
+              tax: res.data?.data?.sales?.totalTax || 0,
+            }))
+            .catch(() => ({
+              month: new Date(year, month - 1).toLocaleString('default', { month: 'short' }),
+              year,
+              monthNum: month,
+              revenue: 0,
+              tax: 0,
+            }))
+        )
+      );
+
+      setRevenueTrendData(trendResults);
+    } catch (err) {
+      console.error('Revenue trend error:', err);
+      setRevenueTrendData([]);
+    }
+  };
+
+  // Derive invoice status from available fields
   const getInvoiceStatus = (invoice) => {
     if (invoice.isPaid) return 'Paid';
     if (invoice.filedInGstr1) return 'Filed';
@@ -161,23 +205,6 @@ export default function DashboardPage() {
   const getStatusColor = (status) => {
     const statusUpper = status?.charAt(0).toUpperCase() + status?.slice(1).toLowerCase();
     return INVOICE_STATUS_COLORS[statusUpper] || 'default';
-  };
-
-  const getRevenueChartData = () => {
-    // Backend returns data.sales for current month; build a single-point chart
-    const salesData = dashboardData?.data?.sales;
-    if (!salesData || !salesData.totalRevenue) return [];
-    
-    const period = dashboardData?.data?.period;
-    const monthLabel = period?.monthName || 'Current';
-    
-    return [
-      {
-        month: monthLabel,
-        revenue: salesData.totalRevenue || 0,
-        tax: salesData.totalTax || 0,
-      },
-    ];
   };
 
   const getGSTBreakdownData = () => {
@@ -216,7 +243,6 @@ export default function DashboardPage() {
   const counts = data.counts || {};
   const tax = data.tax || {};
   
-  // Create summary object for easier access
   const summary = {
     totalRevenue: sales.totalRevenue || 0,
     totalInvoices: sales.invoiceCount || 0,
@@ -233,18 +259,52 @@ export default function DashboardPage() {
   const taxTrend = calculateTrend(summary.totalTax, summary.previousMonthTax || 0);
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
+  const selectedMonthName = monthsList.find(m => m.value === selectedMonth)?.label || '';
 
   return (
     <Box>
-      {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
-          {MESSAGES.DASHBOARD_WELCOME}, {displayName}! 👋
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          {MESSAGES.DASHBOARD_SUBTITLE}
-        </Typography>
+      {/* Header with Period Selector */}
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Typography variant="h4" fontWeight={700} gutterBottom>
+            {MESSAGES.DASHBOARD_WELCOME}, {displayName}! 👋
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            {MESSAGES.DASHBOARD_SUBTITLE}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <TextField
+            select
+            size="small"
+            label="Month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+            sx={{ minWidth: 140 }}
+          >
+            {monthsList.map((m) => (
+              <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            size="small"
+            label="Year"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            sx={{ minWidth: 100 }}
+          >
+            {years.map((y) => (
+              <MenuItem key={y} value={y}>{y}</MenuItem>
+            ))}
+          </TextField>
+        </Box>
       </Box>
+
+      {/* Period Indicator */}
+      <Alert severity="info" sx={{ mb: 3 }} icon={<AccountBalance />}>
+        Showing data for <strong>{selectedMonthName} {selectedYear}</strong>. Use the dropdowns above to view data for other months (e.g., back-dated invoices).
+      </Alert>
 
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -296,7 +356,7 @@ export default function DashboardPage() {
 
       {/* Charts Section */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        {/* Revenue Chart */}
+        {/* Revenue Trend Chart (6 months) */}
         <Grid item xs={12} lg={8}>
           <Card className="chart-card">
             <CardContent>
@@ -306,20 +366,17 @@ export default function DashboardPage() {
                     {MESSAGES.REVENUE_OVERVIEW}
                   </Typography>
                   <Typography className="chart-subtitle">
-                    {MESSAGES.REVENUE_OVERVIEW_SUBTITLE}
+                    Last 6 months revenue and tax collection
                   </Typography>
                 </Box>
-                <IconButton size="small">
-                  <MoreVert />
-                </IconButton>
               </Box>
               {loading ? (
                 <Box className="chart-container">
                   <LinearProgress sx={{ width: '50%' }} />
                 </Box>
-              ) : getRevenueChartData().length > 0 ? (
+              ) : revenueTrendData.length > 0 && revenueTrendData.some(d => d.revenue > 0 || d.tax > 0) ? (
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={getRevenueChartData()}>
+                  <AreaChart data={revenueTrendData}>
                     <defs>
                       <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3} />
@@ -379,7 +436,7 @@ export default function DashboardPage() {
                 {MESSAGES.GST_BREAKDOWN}
               </Typography>
               <Typography className="chart-subtitle" sx={{ mb: 3 }}>
-                {MESSAGES.GST_BREAKDOWN_SUBTITLE}
+                {selectedMonthName} {selectedYear} tax collection
               </Typography>
               {loading ? (
                 <Box className="chart-container" sx={{ height: 250 }}>

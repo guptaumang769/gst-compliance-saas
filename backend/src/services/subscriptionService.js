@@ -34,7 +34,9 @@ async function getSubscriptionStatus(businessId) {
     throw new Error('Business not found');
   }
 
-  const plan = getPlan(business.subscriptionPlan);
+  const PLAN_ALIASES = { free_trial: 'trial', free: 'trial', basic: 'starter' };
+  const resolvedPlanId = PLAN_ALIASES[business.subscriptionPlan] || business.subscriptionPlan;
+  const plan = getPlan(resolvedPlanId);
   const isExpired = business.subscriptionValidUntil && new Date(business.subscriptionValidUntil) < new Date();
 
   // Get current month's usage
@@ -66,15 +68,15 @@ async function getSubscriptionStatus(businessId) {
   ]);
 
   // Check limits
-  const invoiceLimit = checkLimit(business.subscriptionPlan, 'invoicesPerMonth', invoiceCount);
-  const purchaseLimit = checkLimit(business.subscriptionPlan, 'purchasesPerMonth', purchaseCount);
-  const customerLimit = checkLimit(business.subscriptionPlan, 'customersTotal', customerCount);
-  const supplierLimit = checkLimit(business.subscriptionPlan, 'suppliersTotal', supplierCount);
+  const invoiceLimit = checkLimit(resolvedPlanId, 'invoicesPerMonth', invoiceCount);
+  const purchaseLimit = checkLimit(resolvedPlanId, 'purchasesPerMonth', purchaseCount);
+  const customerLimit = checkLimit(resolvedPlanId, 'customersTotal', customerCount);
+  const supplierLimit = checkLimit(resolvedPlanId, 'suppliersTotal', supplierCount);
 
   return {
     success: true,
     subscription: {
-      planId: business.subscriptionPlan,
+      planId: resolvedPlanId,
       planName: plan.displayName,
       status: business.subscriptionStatus,
       validUntil: business.subscriptionValidUntil,
@@ -130,13 +132,16 @@ async function checkFeatureAccess(businessId, feature) {
     throw new Error('Business not found');
   }
 
+  const PLAN_ALIASES = { free_trial: 'trial', free: 'trial', basic: 'starter' };
+  const resolvedPlanId = PLAN_ALIASES[business.subscriptionPlan] || business.subscriptionPlan;
+
   // Check if subscription is expired
   const isExpired = business.subscriptionValidUntil && new Date(business.subscriptionValidUntil) < new Date();
   if (isExpired && business.subscriptionStatus !== 'trial') {
     return false;
   }
 
-  return hasFeature(business.subscriptionPlan, feature);
+  return hasFeature(resolvedPlanId, feature);
 }
 
 /**
@@ -152,6 +157,9 @@ async function checkInvoiceLimit(businessId) {
   if (!business) {
     throw new Error('Business not found');
   }
+
+  const PLAN_ALIASES = { free_trial: 'trial', free: 'trial', basic: 'starter' };
+  const resolvedPlanId = PLAN_ALIASES[business.subscriptionPlan] || business.subscriptionPlan;
 
   // Check if subscription is active
   const isExpired = business.subscriptionValidUntil && new Date(business.subscriptionValidUntil) < new Date();
@@ -176,7 +184,7 @@ async function checkInvoiceLimit(businessId) {
     }
   });
 
-  const limitCheck = checkLimit(business.subscriptionPlan, 'invoicesPerMonth', invoiceCount);
+  const limitCheck = checkLimit(resolvedPlanId, 'invoicesPerMonth', invoiceCount);
 
   if (limitCheck.exceeded) {
     return {

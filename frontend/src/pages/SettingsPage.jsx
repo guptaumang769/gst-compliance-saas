@@ -14,13 +14,15 @@ import {
   Tabs,
   Switch,
   FormControlLabel,
+  LinearProgress,
 } from '@mui/material';
 import {
   Business,
-  Person,
   Security,
   Notifications,
   Save,
+  Person,
+  AccountBalance,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -38,12 +40,14 @@ const businessSchema = Yup.object({
   addressLine1: Yup.string().required('Address is required'),
   city: Yup.string().required('City is required'),
   pincode: Yup.string().required('Pincode is required'),
+  phone: Yup.string()
+    .matches(/^[6-9]\d{9}$/, 'Invalid phone number. Must be 10 digits starting with 6-9')
+    .nullable(),
 });
 
 // User Profile Schema
-const userSchema = Yup.object({
-  email: Yup.string().email('Invalid email').required('Email is required'),
-  phone: Yup.string().matches(/^[6-9]\d{9}$/, 'Invalid phone number'),
+const userProfileSchema = Yup.object({
+  email: Yup.string().email('Invalid email address').required('Email is required'),
 });
 
 // Password Schema
@@ -62,6 +66,7 @@ const passwordSchema = Yup.object({
 
 export default function SettingsPage() {
   const [currentTab, setCurrentTab] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { user } = useAuth();
   const [notificationSettings, setNotificationSettings] = useState({
@@ -70,6 +75,7 @@ export default function SettingsPage() {
     gstReturnReminders: true,
     paymentAlerts: true,
   });
+  const [savingNotifications, setSavingNotifications] = useState(false);
 
   const businessFormik = useFormik({
     initialValues: {
@@ -86,12 +92,23 @@ export default function SettingsPage() {
       email: '',
     },
     validationSchema: businessSchema,
+    enableReinitialize: true,
     onSubmit: async (values, { setSubmitting }) => {
       try {
-        // await businessAPI.update(values);
+        await authAPI.updateProfile({
+          businessName: values.businessName,
+          addressLine1: values.addressLine1,
+          addressLine2: values.addressLine2,
+          city: values.city,
+          state: values.state,
+          pincode: values.pincode,
+          businessType: values.businessType,
+          phone: values.phone,
+          email: values.email,
+        });
         handleSuccess('Business profile updated successfully');
       } catch (err) {
-        handleApiError(err);
+        handleApiError(err, 'Failed to update business profile');
       } finally {
         setSubmitting(false);
       }
@@ -100,16 +117,18 @@ export default function SettingsPage() {
 
   const userFormik = useFormik({
     initialValues: {
-      email: user?.email || '',
-      phone: '',
+      email: '',
     },
-    validationSchema: userSchema,
+    validationSchema: userProfileSchema,
+    enableReinitialize: true,
     onSubmit: async (values, { setSubmitting }) => {
       try {
-        // await userAPI.update(values);
+        await authAPI.updateProfile({
+          userEmail: values.email,
+        });
         handleSuccess('User profile updated successfully');
       } catch (err) {
-        handleApiError(err);
+        handleApiError(err, 'Failed to update user profile');
       } finally {
         setSubmitting(false);
       }
@@ -125,16 +144,90 @@ export default function SettingsPage() {
     validationSchema: passwordSchema,
     onSubmit: async (values, { setSubmitting, resetForm }) => {
       try {
-        // await authAPI.changePassword(values);
-        handleSuccess('Password changed successfully');
+        // Backend expects { oldPassword, newPassword }
+        await authAPI.changePassword({
+          oldPassword: values.currentPassword,
+          newPassword: values.newPassword,
+        });
+        handleSuccess('Password changed successfully! Please log in with your new password next time.');
         resetForm();
       } catch (err) {
-        handleApiError(err);
+        handleApiError(err, 'Failed to change password');
       } finally {
         setSubmitting(false);
       }
     },
   });
+
+  const bankFormik = useFormik({
+    initialValues: {
+      bankName: '',
+      bankAccountNumber: '',
+      bankIfsc: '',
+      bankBranch: '',
+      filingFrequency: 'monthly',
+    },
+    enableReinitialize: true,
+    onSubmit: async (values, { setSubmitting }) => {
+      try {
+        await authAPI.updateSettings(values);
+        handleSuccess('Bank details and filing settings saved successfully');
+      } catch (err) {
+        handleApiError(err, 'Failed to save settings');
+      } finally {
+        setSubmitting(false);
+      }
+    },
+  });
+
+  // Fetch profile data on mount
+  useEffect(() => {
+    fetchProfileData();
+  }, []);
+
+  const fetchProfileData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authAPI.getProfile();
+      const userData = response.data?.user || response.data;
+      const business = userData?.businesses?.[0] || {};
+
+      // Populate user profile form
+      userFormik.setValues({
+        email: userData?.email || '',
+      });
+
+      // Populate business form
+      businessFormik.setValues({
+        businessName: business.businessName || '',
+        gstin: business.gstin || '',
+        pan: business.pan || '',
+        state: business.state || '',
+        businessType: business.businessType || 'Proprietorship',
+        addressLine1: business.addressLine1 || '',
+        addressLine2: business.addressLine2 || '',
+        city: business.city || '',
+        pincode: business.pincode || '',
+        phone: business.phone || '',
+        email: business.email || '',
+      });
+
+      // Populate bank details form
+      bankFormik.setValues({
+        bankName: business.bankName || '',
+        bankAccountNumber: business.bankAccountNumber || '',
+        bankIfsc: business.bankIfsc || '',
+        bankBranch: business.bankBranch || '',
+        filingFrequency: business.filingFrequency || 'monthly',
+      });
+    } catch (err) {
+      const msg = handleApiError(err, 'Failed to load profile data');
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleNotificationChange = (setting) => {
     setNotificationSettings({
@@ -143,10 +236,35 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSaveNotifications = () => {
-    // Save notification settings
-    handleSuccess('Notification preferences saved');
+  const handleSaveNotifications = async () => {
+    try {
+      setSavingNotifications(true);
+      localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
+      handleSuccess('Notification preferences saved');
+    } catch (err) {
+      handleApiError(err, 'Failed to save notification preferences');
+    } finally {
+      setSavingNotifications(false);
+    }
   };
+
+  useEffect(() => {
+    const saved = localStorage.getItem('notificationSettings');
+    if (saved) {
+      try { setNotificationSettings(JSON.parse(saved)); } catch {}
+    }
+  }, []);
+
+  if (loading) {
+    return (
+      <Box sx={{ py: 4 }}>
+        <LinearProgress />
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }} align="center">
+          Loading settings...
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -156,7 +274,7 @@ export default function SettingsPage() {
           Settings
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Manage your account and business preferences
+          Manage your business preferences, security, and notifications
         </Typography>
       </Box>
 
@@ -172,11 +290,15 @@ export default function SettingsPage() {
         <Tabs
           value={currentTab}
           onChange={(e, newValue) => setCurrentTab(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
           <Tab icon={<Business />} label="Business Profile" iconPosition="start" />
           <Tab icon={<Person />} label="User Profile" iconPosition="start" />
-          <Tab icon={<Security />} label="Security" iconPosition="start" />
+          <Tab icon={<AccountBalance />} label="Bank & Filing" iconPosition="start" />
+          <Tab icon={<Security />} label="Change Password" iconPosition="start" />
           <Tab icon={<Notifications />} label="Notifications" iconPosition="start" />
         </Tabs>
       </Card>
@@ -237,6 +359,10 @@ export default function SettingsPage() {
                     onBlur={businessFormik.handleBlur}
                     error={businessFormik.touched.gstin && Boolean(businessFormik.errors.gstin)}
                     helperText={businessFormik.touched.gstin && businessFormik.errors.gstin}
+                    disabled
+                    InputProps={{
+                      readOnly: true,
+                    }}
                   />
                 </Grid>
 
@@ -251,6 +377,10 @@ export default function SettingsPage() {
                     onBlur={businessFormik.handleBlur}
                     error={businessFormik.touched.pan && Boolean(businessFormik.errors.pan)}
                     helperText={businessFormik.touched.pan && businessFormik.errors.pan}
+                    disabled
+                    InputProps={{
+                      readOnly: true,
+                    }}
                   />
                 </Grid>
 
@@ -333,9 +463,13 @@ export default function SettingsPage() {
                     fullWidth
                     id="phone"
                     name="phone"
-                    label="Phone"
+                    label="Business Phone"
+                    placeholder="e.g. 9876543210"
                     value={businessFormik.values.phone}
                     onChange={businessFormik.handleChange}
+                    onBlur={businessFormik.handleBlur}
+                    error={businessFormik.touched.phone && Boolean(businessFormik.errors.phone)}
+                    helperText={businessFormik.touched.phone && businessFormik.errors.phone}
                   />
                 </Grid>
 
@@ -352,6 +486,9 @@ export default function SettingsPage() {
                 </Grid>
 
                 <Grid item xs={12}>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    GSTIN and PAN cannot be changed. Contact support if you need to update these.
+                  </Alert>
                   <Button
                     type="submit"
                     variant="contained"
@@ -359,7 +496,7 @@ export default function SettingsPage() {
                     disabled={businessFormik.isSubmitting}
                     className="gradient-button-primary"
                   >
-                    Save Changes
+                    {businessFormik.isSubmitting ? 'Saving...' : 'Save Changes'}
                   </Button>
                 </Grid>
               </Grid>
@@ -376,7 +513,7 @@ export default function SettingsPage() {
               <Grid container spacing={3}>
                 <Grid item xs={12}>
                   <Typography variant="h6" gutterBottom>
-                    Personal Information
+                    User Profile
                   </Typography>
                   <Divider sx={{ mb: 3 }} />
                 </Grid>
@@ -384,9 +521,9 @@ export default function SettingsPage() {
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
-                    id="email"
+                    id="userEmail"
                     name="email"
-                    label="Email *"
+                    label="Login Email *"
                     type="email"
                     value={userFormik.values.email}
                     onChange={userFormik.handleChange}
@@ -396,21 +533,10 @@ export default function SettingsPage() {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    id="phone"
-                    name="phone"
-                    label="Phone"
-                    value={userFormik.values.phone}
-                    onChange={userFormik.handleChange}
-                    onBlur={userFormik.handleBlur}
-                    error={userFormik.touched.phone && Boolean(userFormik.errors.phone)}
-                    helperText={userFormik.touched.phone && userFormik.errors.phone}
-                  />
-                </Grid>
-
                 <Grid item xs={12}>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    This is the email you use to log in. Changing it will require you to use the new email for future logins. Your phone number is stored under Business Profile.
+                  </Alert>
                   <Button
                     type="submit"
                     variant="contained"
@@ -418,7 +544,7 @@ export default function SettingsPage() {
                     disabled={userFormik.isSubmitting}
                     className="gradient-button-primary"
                   >
-                    Save Changes
+                    {userFormik.isSubmitting ? 'Saving...' : 'Update Email'}
                   </Button>
                 </Grid>
               </Grid>
@@ -427,8 +553,111 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* Security Tab */}
+      {/* Bank Details & Filing Frequency Tab */}
       {currentTab === 2 && (
+        <Card>
+          <CardContent>
+            <form onSubmit={bankFormik.handleSubmit}>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom>
+                    Bank Details
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Bank details will appear on your invoice PDFs
+                  </Typography>
+                  <Divider sx={{ mb: 3 }} />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    id="bankName"
+                    name="bankName"
+                    label="Bank Name"
+                    value={bankFormik.values.bankName}
+                    onChange={bankFormik.handleChange}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    id="bankAccountNumber"
+                    name="bankAccountNumber"
+                    label="Account Number"
+                    value={bankFormik.values.bankAccountNumber}
+                    onChange={bankFormik.handleChange}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    id="bankIfsc"
+                    name="bankIfsc"
+                    label="IFSC Code"
+                    value={bankFormik.values.bankIfsc}
+                    onChange={bankFormik.handleChange}
+                    inputProps={{ style: { textTransform: 'uppercase' } }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    id="bankBranch"
+                    name="bankBranch"
+                    label="Branch Name"
+                    value={bankFormik.values.bankBranch}
+                    onChange={bankFormik.handleChange}
+                  />
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    GST Filing Frequency
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    select
+                    id="filingFrequency"
+                    name="filingFrequency"
+                    label="Filing Frequency"
+                    value={bankFormik.values.filingFrequency}
+                    onChange={bankFormik.handleChange}
+                  >
+                    <MenuItem value="monthly">Monthly</MenuItem>
+                    <MenuItem value="quarterly">Quarterly (QRMP Scheme)</MenuItem>
+                  </TextField>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Quarterly filing (QRMP) is available for businesses with annual turnover up to Rs. 5 crore.
+                  </Alert>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    startIcon={<Save />}
+                    disabled={bankFormik.isSubmitting}
+                    className="gradient-button-primary"
+                  >
+                    {bankFormik.isSubmitting ? 'Saving...' : 'Save Settings'}
+                  </Button>
+                </Grid>
+              </Grid>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Change Password Tab */}
+      {currentTab === 3 && (
         <Card>
           <CardContent>
             <form onSubmit={passwordFormik.handleSubmit}>
@@ -501,7 +730,7 @@ export default function SettingsPage() {
                     disabled={passwordFormik.isSubmitting}
                     className="gradient-button-primary"
                   >
-                    Change Password
+                    {passwordFormik.isSubmitting ? 'Changing...' : 'Change Password'}
                   </Button>
                 </Grid>
               </Grid>
@@ -511,7 +740,7 @@ export default function SettingsPage() {
       )}
 
       {/* Notifications Tab */}
-      {currentTab === 3 && (
+      {currentTab === 4 && (
         <Card>
           <CardContent>
             <Grid container spacing={3}>
@@ -587,9 +816,10 @@ export default function SettingsPage() {
                   variant="contained"
                   startIcon={<Save />}
                   onClick={handleSaveNotifications}
+                  disabled={savingNotifications}
                   className="gradient-button-primary"
                 >
-                  Save Preferences
+                  {savingNotifications ? 'Saving...' : 'Save Preferences'}
                 </Button>
               </Grid>
             </Grid>

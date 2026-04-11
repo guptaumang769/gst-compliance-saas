@@ -76,7 +76,7 @@ model Business {
   logoUrl          String?   @map("logo_url")
   
   // Subscription
-  subscriptionPlan String    @default("free_trial") @map("subscription_plan")
+  subscriptionPlan String    @default("trial") @map("subscription_plan")
   subscriptionStatus String  @default("active") @map("subscription_status")
   subscriptionValidUntil DateTime? @map("subscription_valid_until")
   invoiceLimit     Int       @default(100) @map("invoice_limit")

@@ -1,5 +1,4 @@
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: gst_saas_db
@@ -20,7 +19,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache
   redis:
     image: redis:7-alpine
     container_name: gst_saas_redis
@@ -37,47 +35,51 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend API (uncomment after backend is setup)
-  # backend:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   container_name: gst_saas_backend
-  #   restart: unless-stopped
-  #   environment:
-  #     NODE_ENV: development
-  #     DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/gst_saas
-  #     REDIS_URL: redis://redis:6379
-  #     PORT: 5000
-  #   ports:
-  #     - "5000:5000"
-  #   volumes:
-  #     - ./backend:/app
-  #     - /app/node_modules
-  #   depends_on:
-  #     - postgres
-  #     - redis
-  #   networks:
-  #     - gst_network
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gst_saas_backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/gst_saas
+      REDIS_URL: redis://redis:6379
+      PORT: 5000
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
+      JWT_EXPIRES_IN: 7d
+      ALLOWED_ORIGINS: http://localhost,http://localhost:80,http://localhost:3000
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@gst-saas.com}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gst_network
 
-  # Frontend (uncomment after frontend is setup)
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   container_name: gst_saas_frontend
-  #   restart: unless-stopped
-  #   environment:
-  #     REACT_APP_API_URL: http://localhost:5000/api
-  #   ports:
-  #     - "3000:3000"
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - gst_network
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: gst_saas_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - gst_network
 
 volumes:
   postgres_data:

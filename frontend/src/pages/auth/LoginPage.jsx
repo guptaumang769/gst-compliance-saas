@@ -184,17 +184,13 @@ export default function LoginPage() {
 
             <Box sx={{ textAlign: 'right', mt: 1 }}>
               <Link
-                component="button"
-                type="button"
-                onClick={() => {
-                  alert('Password reset feature is coming soon! Please contact support at support@gstcompliance.com for assistance.');
-                }}
+                component={RouterLink}
+                to="/forgot-password"
                 variant="body2"
                 sx={{
                   textDecoration: 'none',
                   color: 'primary.main',
                   fontWeight: 600,
-                  cursor: 'pointer',
                   '&:hover': {
                     textDecoration: 'underline',
                   },

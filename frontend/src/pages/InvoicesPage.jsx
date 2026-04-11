@@ -31,6 +31,8 @@ import {
   Select,
   Autocomplete,
   Tooltip,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Add,
@@ -44,6 +46,8 @@ import {
   AddCircleOutline,
   RemoveCircleOutline,
   InfoOutlined,
+  Gavel,
+  WarningAmber,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -51,6 +55,46 @@ import { invoiceAPI, customerAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import { INVOICE_STATUS_COLORS } from '../utils/constants';
 import { formatCurrency, formatDate } from '../utils/formatters';
+
+const COMMON_HSN_CODES = [
+  { code: '0401', desc: 'Milk and cream', rate: '5%' },
+  { code: '1001', desc: 'Wheat and meslin', rate: '5%' },
+  { code: '1006', desc: 'Rice', rate: '5%' },
+  { code: '1905', desc: 'Bread, pastry, cakes', rate: '18%' },
+  { code: '2201', desc: 'Mineral water', rate: '18%' },
+  { code: '3004', desc: 'Medicaments', rate: '12%' },
+  { code: '3304', desc: 'Beauty/cosmetic preparations', rate: '28%' },
+  { code: '3401', desc: 'Soap', rate: '18%' },
+  { code: '3808', desc: 'Insecticides, fungicides', rate: '18%' },
+  { code: '3901', desc: 'Polymers of ethylene', rate: '18%' },
+  { code: '3926', desc: 'Plastic articles', rate: '18%' },
+  { code: '4819', desc: 'Cartons, boxes of paper', rate: '18%' },
+  { code: '4901', desc: 'Printed books', rate: '0%' },
+  { code: '6109', desc: 'T-shirts, singlets', rate: '5%' },
+  { code: '6204', desc: "Women's suits, jackets", rate: '12%' },
+  { code: '6403', desc: 'Footwear', rate: '18%' },
+  { code: '7308', desc: 'Iron/steel structures', rate: '18%' },
+  { code: '7318', desc: 'Screws, bolts, nuts', rate: '18%' },
+  { code: '8415', desc: 'Air conditioning machines', rate: '28%' },
+  { code: '8418', desc: 'Refrigerators, freezers', rate: '18%' },
+  { code: '8471', desc: 'Computers and peripherals', rate: '18%' },
+  { code: '8504', desc: 'Electrical transformers', rate: '18%' },
+  { code: '8507', desc: 'Electric accumulators/batteries', rate: '28%' },
+  { code: '8517', desc: 'Telephone sets, smartphones', rate: '18%' },
+  { code: '8528', desc: 'Monitors, projectors, TVs', rate: '28%' },
+  { code: '8703', desc: 'Motor cars and vehicles', rate: '28%' },
+  { code: '8711', desc: 'Motorcycles', rate: '28%' },
+  { code: '9401', desc: 'Seats and chairs', rate: '18%' },
+  { code: '9403', desc: 'Furniture', rate: '18%' },
+  { code: '996311', desc: 'Restaurant services (SAC)', rate: '5%' },
+  { code: '997321', desc: 'Accounting/auditing services (SAC)', rate: '18%' },
+  { code: '998311', desc: 'IT consulting services (SAC)', rate: '18%' },
+  { code: '998312', desc: 'IT design & development (SAC)', rate: '18%' },
+  { code: '998313', desc: 'IT infrastructure services (SAC)', rate: '18%' },
+  { code: '998314', desc: 'IT support services (SAC)', rate: '18%' },
+  { code: '998212', desc: 'Freight transport by road (SAC)', rate: '18%' },
+  { code: '997331', desc: 'Legal services (SAC)', rate: '18%' },
+];
 
 // Line Item Schema
 const lineItemSchema = Yup.object({
@@ -66,17 +110,18 @@ const lineItemSchema = Yup.object({
 // Invoice Schema
 const invoiceSchema = Yup.object({
   customerId: Yup.string().required('Customer is required'),
-  invoiceDate: Yup.date().required('Invoice date is required'),
+  invoiceDate: Yup.date()
+    .required('Invoice date is required')
+    .max(new Date(), 'Invoice date cannot be in the future'),
   dueDate: Yup.date().min(Yup.ref('invoiceDate'), 'Due date must be after invoice date').nullable(),
   items: Yup.array().of(lineItemSchema).min(1, 'At least one item is required'),
 });
 
 // Compute invoice status from available fields
 const getInvoiceStatus = (invoice) => {
-  if (invoice.isPaid) return 'Paid';
   if (invoice.filedInGstr1) return 'Filed';
+  if (invoice.emailSent) return 'Sent';
   if (invoice.pdfGenerated) return 'Generated';
-  if (invoice.dueDate && new Date(invoice.dueDate) < new Date()) return 'Overdue';
   return 'Draft';
 };
 
@@ -104,6 +149,7 @@ export default function InvoicesPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(null); // track which invoice PDF is loading
+  const [formError, setFormError] = useState(''); // general form validation error
 
   useEffect(() => {
     fetchInvoices();
@@ -142,12 +188,36 @@ export default function InvoicesPage() {
     }
   };
 
+  // Helper to get nested item field error
+  const getItemError = (index, field) => {
+    const errors = formik.errors.items;
+    if (Array.isArray(errors) && errors[index] && typeof errors[index] === 'object') {
+      return errors[index][field] || '';
+    }
+    return '';
+  };
+
+  // Helper to check if item field was touched
+  const isItemTouched = (index, field) => {
+    const touched = formik.touched.items;
+    if (Array.isArray(touched) && touched[index] && typeof touched[index] === 'object') {
+      return !!touched[index][field];
+    }
+    return false;
+  };
+
+  // Show item error only when field was touched or form was submitted at least once
+  const showItemError = (index, field) => {
+    return (isItemTouched(index, field) || formik.submitCount > 0) && !!getItemError(index, field);
+  };
+
   const formik = useFormik({
     initialValues: {
       customerId: '',
       invoiceDate: new Date().toISOString().split('T')[0],
       dueDate: '',
       notes: '',
+      reverseCharge: false,
       items: [
         {
           description: '',
@@ -161,8 +231,29 @@ export default function InvoicesPage() {
       ],
     },
     validationSchema: invoiceSchema,
+    validateOnMount: false,
     onSubmit: async (values, { setSubmitting, resetForm }) => {
       try {
+        setFormError('');
+        // Extra guard: Check items length before submitting
+        if (!values.items || values.items.length === 0) {
+          setFormError('At least one line item is required');
+          handleApiError({ message: 'At least one line item is required' });
+          setSubmitting(false);
+          return;
+        }
+
+        // Check if any item has empty required fields
+        const hasEmptyItems = values.items.some(
+          (item) => !item.description?.trim() || !item.hsnCode?.trim() || !item.unitPrice
+        );
+        if (hasEmptyItems) {
+          setFormError('Please fill in all required fields (Description, HSN Code, Price) for each line item');
+          handleApiError({ message: 'Please fill in all required fields for each line item' });
+          setSubmitting(false);
+          return;
+        }
+
         const invoiceData = {
           ...values,
           items: values.items.map(item => ({
@@ -183,6 +274,7 @@ export default function InvoicesPage() {
 
         handleCloseDialog();
         resetForm();
+        setFormError('');
         fetchInvoices();
       } catch (err) {
         handleApiError(err);
@@ -201,6 +293,7 @@ export default function InvoicesPage() {
         invoiceDate: invoice.invoiceDate?.split('T')[0] || new Date().toISOString().split('T')[0],
         dueDate: invoice.dueDate?.split('T')[0] || '',
         notes: invoice.notes || '',
+        reverseCharge: invoice.reverseCharge || false,
         items: (invoice.items || []).map(item => ({
           description: item.itemName || item.description || '',
           hsnCode: item.hsnCode || '',
@@ -223,6 +316,7 @@ export default function InvoicesPage() {
     setOpenDialog(false);
     setEditingInvoice(null);
     setSelectedCustomer(null);
+    setFormError('');
     formik.resetForm();
   };
 
@@ -270,13 +364,32 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleSendEmail = async (e, invoiceId) => {
+  const handleSendEmail = async (e, invoice) => {
     e.stopPropagation();
     try {
-      await invoiceAPI.sendEmail(invoiceId);
+      // Send to customer's email if available
+      const customerEmail = invoice.customer?.email;
+      await invoiceAPI.sendEmail(invoice.id, {
+        to: customerEmail,
+        subject: `Invoice ${invoice.invoiceNumber}`,
+        message: `Please find attached invoice ${invoice.invoiceNumber}.`,
+      });
       handleSuccess('Invoice sent via email successfully');
+      fetchInvoices();
     } catch (err) {
       handleApiError(err, 'Failed to send email');
+    }
+  };
+
+  const handleMarkAsFiled = async (e, invoice) => {
+    e.stopPropagation();
+    try {
+      const newFiledStatus = !invoice.filedInGstr1;
+      await invoiceAPI.markAsFiled(invoice.id, { filed: newFiledStatus });
+      handleSuccess(newFiledStatus ? 'Invoice marked as filed in GSTR-1' : 'Invoice unfiled from GSTR-1');
+      fetchInvoices();
+    } catch (err) {
+      handleApiError(err, 'Failed to update filing status');
     }
   };
 
@@ -350,7 +463,7 @@ export default function InvoicesPage() {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
             Invoices
@@ -364,6 +477,7 @@ export default function InvoicesPage() {
           startIcon={<Add />}
           onClick={() => handleOpenDialog()}
           className="gradient-button-primary"
+          size="small"
         >
           Create Invoice
         </Button>
@@ -404,10 +518,9 @@ export default function InvoicesPage() {
                 >
                   <MenuItem value="">All</MenuItem>
                   <MenuItem value="draft">Draft</MenuItem>
-                  <MenuItem value="sent">Sent</MenuItem>
-                  <MenuItem value="paid">Paid</MenuItem>
-                  <MenuItem value="overdue">Overdue</MenuItem>
-                  <MenuItem value="cancelled">Cancelled</MenuItem>
+                  <MenuItem value="generated">Generated (PDF)</MenuItem>
+                  <MenuItem value="sent">Sent (Email)</MenuItem>
+                  <MenuItem value="filed">Filed in GSTR-1</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -455,9 +568,14 @@ export default function InvoicesPage() {
                       return (
                         <TableRow key={invoice.id} hover>
                           <TableCell>
-                            <Typography variant="body2" fontWeight={600} fontFamily="monospace">
-                              {invoice.invoiceNumber}
-                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography variant="body2" fontWeight={600} fontFamily="monospace">
+                                {invoice.invoiceNumber}
+                              </Typography>
+                              {invoice.reverseCharge && (
+                                <Chip label="RCM" size="small" color="warning" variant="outlined" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }} />
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2">
@@ -511,7 +629,7 @@ export default function InvoicesPage() {
                             />
                           </TableCell>
                           <TableCell>
-                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                               <Tooltip title="Download PDF">
                                 <IconButton
                                   size="small"
@@ -522,24 +640,46 @@ export default function InvoicesPage() {
                                   <PictureAsPdf fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Edit">
+                              <Tooltip title="Send via Email">
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleOpenDialog(invoice)}
-                                  color="primary"
+                                  onClick={(e) => handleSendEmail(e, invoice)}
+                                  color="secondary"
                                 >
-                                  <Edit fontSize="small" />
+                                  <Email fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Delete">
+                              <Tooltip title={invoice.filedInGstr1 ? 'Unmark Filed' : 'Mark as Filed in GSTR-1'}>
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleOpenDeleteDialog(invoice)}
-                                  color="error"
+                                  onClick={(e) => handleMarkAsFiled(e, invoice)}
+                                  color={invoice.filedInGstr1 ? 'success' : 'default'}
                                 >
-                                  <Delete fontSize="small" />
+                                  <Gavel fontSize="small" />
                                 </IconButton>
                               </Tooltip>
+                              {!invoice.filedInGstr1 && (
+                                <>
+                                  <Tooltip title="Edit">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleOpenDialog(invoice)}
+                                      color="primary"
+                                    >
+                                      <Edit fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleOpenDeleteDialog(invoice)}
+                                      color="error"
+                                    >
+                                      <Delete fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </>
+                              )}
                             </Box>
                           </TableCell>
                         </TableRow>
@@ -641,6 +781,7 @@ export default function InvoicesPage() {
                   error={formik.touched.invoiceDate && Boolean(formik.errors.invoiceDate)}
                   helperText={formik.touched.invoiceDate && formik.errors.invoiceDate}
                   InputLabelProps={{ shrink: true }}
+                  inputProps={{ max: new Date().toISOString().split('T')[0] }}
                 />
               </Grid>
 
@@ -678,6 +819,27 @@ export default function InvoicesPage() {
                 </Grid>
               )}
 
+              {/* Reverse Charge Toggle */}
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formik.values.reverseCharge}
+                      onChange={(e) => formik.setFieldValue('reverseCharge', e.target.checked)}
+                    />
+                  }
+                  label="Reverse Charge Mechanism (RCM)"
+                />
+                {formik.values.reverseCharge && (
+                  <Alert severity="warning" icon={<WarningAmber />} sx={{ mt: 1 }}>
+                    <Typography variant="body2">
+                      <strong>RCM Applicable:</strong> The recipient (you) is liable to pay GST instead of the supplier.
+                      This will be reported under Section 3.1(d) of GSTR-3B.
+                    </Typography>
+                  </Alert>
+                )}
+              </Grid>
+
               {/* Line Items */}
               <Grid item xs={12}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -692,6 +854,20 @@ export default function InvoicesPage() {
                   </Button>
                 </Box>
 
+                {/* Show form-level validation error */}
+                {formError && (
+                  <Alert severity="error" sx={{ mb: 2 }} onClose={() => setFormError('')}>
+                    {formError}
+                  </Alert>
+                )}
+
+                {/* Show error if no items or item-level validation fails */}
+                {formik.submitCount > 0 && typeof formik.errors.items === 'string' && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {formik.errors.items}
+                  </Alert>
+                )}
+
                 {formik.values.items.map((item, index) => (
                   <Paper key={index} sx={{ p: 2, mb: 2 }} variant="outlined">
                     <Grid container spacing={2} alignItems="center">
@@ -703,19 +879,52 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.description`, e.target.value)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.description`, true)}
+                          error={showItemError(index, 'description')}
+                          helperText={showItemError(index, 'description') ? getItemError(index, 'description') : ''}
                           size="small"
                         />
                       </Grid>
 
                       <Grid item xs={6} md={1.5}>
-                        <TextField
-                          fullWidth
-                          label="HSN Code *"
-                          value={item.hsnCode}
-                          onChange={(e) =>
-                            formik.setFieldValue(`items.${index}.hsnCode`, e.target.value)
+                        <Autocomplete
+                          freeSolo
+                          value={item.hsnCode || ''}
+                          onChange={(e, newValue) => {
+                            const code = typeof newValue === 'object' ? newValue?.code : newValue;
+                            formik.setFieldValue(`items.${index}.hsnCode`, code || '');
+                          }}
+                          onInputChange={(e, inputValue) => {
+                            formik.setFieldValue(`items.${index}.hsnCode`, inputValue || '');
+                          }}
+                          options={COMMON_HSN_CODES}
+                          getOptionLabel={(option) =>
+                            typeof option === 'string' ? option : `${option.code} - ${option.desc}`
                           }
-                          size="small"
+                          filterOptions={(options, { inputValue }) =>
+                            options.filter(
+                              (o) =>
+                                o.code.includes(inputValue) ||
+                                o.desc.toLowerCase().includes(inputValue.toLowerCase())
+                            )
+                          }
+                          renderOption={(props, option) => (
+                            <li {...props} key={option.code}>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>{option.code}</Typography>
+                                <Typography variant="caption" color="text.secondary">{option.desc} ({option.rate})</Typography>
+                              </Box>
+                            </li>
+                          )}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="HSN Code *"
+                              size="small"
+                              error={showItemError(index, 'hsnCode')}
+                              helperText={showItemError(index, 'hsnCode') ? getItemError(index, 'hsnCode') : ''}
+                            />
+                          )}
                         />
                       </Grid>
 
@@ -728,6 +937,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.quantity`, parseFloat(e.target.value) || 0)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.quantity`, true)}
+                          error={showItemError(index, 'quantity')}
+                          helperText={showItemError(index, 'quantity') ? getItemError(index, 'quantity') : ''}
                           size="small"
                           inputProps={{ min: 1 }}
                         />
@@ -742,6 +954,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.unitPrice`, parseFloat(e.target.value) || 0)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.unitPrice`, true)}
+                          error={showItemError(index, 'unitPrice')}
+                          helperText={showItemError(index, 'unitPrice') ? getItemError(index, 'unitPrice') : ''}
                           size="small"
                           inputProps={{ min: 0 }}
                         />
@@ -756,6 +971,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.discount`, parseFloat(e.target.value) || 0)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.discount`, true)}
+                          error={showItemError(index, 'discount')}
+                          helperText={showItemError(index, 'discount') ? getItemError(index, 'discount') : ''}
                           size="small"
                           inputProps={{ min: 0, max: 100 }}
                         />
@@ -770,6 +988,9 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.gstRate`, parseFloat(e.target.value) || 0)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.gstRate`, true)}
+                          error={showItemError(index, 'gstRate')}
+                          helperText={showItemError(index, 'gstRate') ? getItemError(index, 'gstRate') : ''}
                           size="small"
                           inputProps={{ min: 0, max: 100 }}
                         />
@@ -784,14 +1005,33 @@ export default function InvoicesPage() {
                           onChange={(e) =>
                             formik.setFieldValue(`items.${index}.cessRate`, parseFloat(e.target.value) || 0)
                           }
+                          onBlur={() => formik.setFieldTouched(`items.${index}.cessRate`, true)}
+                          error={showItemError(index, 'cessRate')}
+                          helperText={showItemError(index, 'cessRate') ? getItemError(index, 'cessRate') : ''}
                           size="small"
                           inputProps={{ min: 0, max: 100 }}
                         />
                       </Grid>
 
-                      <Grid item xs={10} md={1}>
+                      <Grid item xs={6} md={0.8}>
+                        <Typography variant="caption" color="primary" fontWeight={600}>
+                          {formatCurrency((() => {
+                            const sub = (item.quantity || 0) * (item.unitPrice || 0);
+                            const disc = (sub * (item.discount || 0)) / 100;
+                            return ((sub - disc) * (item.gstRate || 0)) / 100;
+                          })())}
+                        </Typography>
+                        <Typography variant="caption" display="block" color="text.disabled" fontSize="0.6rem">
+                          Tax
+                        </Typography>
+                      </Grid>
+
+                      <Grid item xs={6} md={0.8}>
                         <Typography variant="caption" color="text.secondary" fontWeight={600}>
                           {formatCurrency(calculateItemTotal(item))}
+                        </Typography>
+                        <Typography variant="caption" display="block" color="text.disabled" fontSize="0.6rem">
+                          Total
                         </Typography>
                       </Grid>
 
@@ -862,6 +1102,29 @@ export default function InvoicesPage() {
               variant="contained"
               disabled={formik.isSubmitting}
               className="gradient-button-primary"
+              onClick={() => {
+                // When the user clicks submit, Formik's handleSubmit validates the form.
+                // If there are validation errors, onSubmit is never called, so we show
+                // a toast after a short delay if the form is still invalid.
+                setTimeout(() => {
+                  if (formik.errors && Object.keys(formik.errors).length > 0) {
+                    // Build a human-readable error message
+                    const errorMessages = [];
+                    if (formik.errors.customerId) errorMessages.push('Customer is required');
+                    if (formik.errors.invoiceDate) errorMessages.push(formik.errors.invoiceDate);
+                    if (typeof formik.errors.items === 'string') {
+                      errorMessages.push(formik.errors.items);
+                    } else if (Array.isArray(formik.errors.items)) {
+                      errorMessages.push('Please fill in all required fields for each line item');
+                    }
+                    const msg = errorMessages.length > 0
+                      ? errorMessages.join('. ')
+                      : 'Please fix the errors in the form before submitting';
+                    setFormError(msg);
+                    handleApiError({ message: msg });
+                  }
+                }, 100);
+              }}
             >
               {formik.isSubmitting ? 'Saving...' : editingInvoice ? 'Update' : 'Create'}
             </Button>

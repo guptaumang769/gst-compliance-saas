@@ -16,6 +16,10 @@ import {
   Divider,
   ListItemIcon,
   ListItemText,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
 } from '@mui/material';
 import {
   Dashboard,
@@ -23,12 +27,14 @@ import {
   People,
   ShoppingCart,
   Assessment,
+  CalendarMonth,
   Settings,
   Notifications,
   Logout,
   AccountCircle,
   Menu as MenuIcon,
   LocalShipping,
+  CardMembership,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 
@@ -39,6 +45,8 @@ const navItems = [
   { label: 'Suppliers', path: '/suppliers', icon: <LocalShipping /> },
   { label: 'Purchases', path: '/purchases', icon: <ShoppingCart /> },
   { label: 'GST Returns', path: '/gst-returns', icon: <Assessment /> },
+  { label: 'Compliance Calendar', path: '/compliance-calendar', icon: <CalendarMonth /> },
+  { label: 'Pricing', path: '/pricing', icon: <CardMembership /> },
 ];
 
 export default function MainLayout({ children }) {
@@ -47,6 +55,7 @@ export default function MainLayout({ children }) {
   const location = useLocation();
   const [anchorElUser, setAnchorElUser] = useState(null);
   const [anchorElNotifications, setAnchorElNotifications] = useState(null);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const handleOpenUserMenu = (event) => {
     setAnchorElUser(event.currentTarget);
@@ -128,7 +137,7 @@ export default function MainLayout({ children }) {
               </Typography>
             </Box>
 
-            {/* Navigation Items */}
+            {/* Navigation Items (Desktop) */}
             <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' }, gap: 1 }}>
               {navItems.map((item) => (
                 <Button
@@ -156,6 +165,9 @@ export default function MainLayout({ children }) {
               ))}
             </Box>
 
+            {/* Spacer for mobile */}
+            <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' } }} />
+
             {/* Right Side Icons */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {/* Notifications */}
@@ -170,9 +182,12 @@ export default function MainLayout({ children }) {
                 </IconButton>
               </Tooltip>
 
-              {/* User Menu */}
+              {/* User Menu (Desktop only) */}
               <Tooltip title="Account settings">
-                <IconButton onClick={handleOpenUserMenu} sx={{ p: 0, ml: 1 }}>
+                <IconButton
+                  onClick={handleOpenUserMenu}
+                  sx={{ p: 0, ml: 1, display: { xs: 'none', md: 'flex' } }}
+                >
                   <Avatar
                     sx={{
                       bgcolor: 'rgba(255, 255, 255, 0.2)',
@@ -184,10 +199,113 @@ export default function MainLayout({ children }) {
                   </Avatar>
                 </IconButton>
               </Tooltip>
+
+              {/* Mobile Menu Button */}
+              <IconButton
+                onClick={() => setMobileDrawerOpen(true)}
+                sx={{ color: 'white', display: { xs: 'flex', md: 'none' } }}
+              >
+                <MenuIcon />
+              </IconButton>
             </Box>
           </Toolbar>
         </Container>
       </AppBar>
+
+      {/* Mobile Navigation Drawer */}
+      <Drawer
+        anchor="left"
+        open={mobileDrawerOpen}
+        onClose={() => setMobileDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            width: 280,
+            background: 'linear-gradient(180deg, #6366F1 0%, #4F46E5 100%)',
+            color: 'white',
+          },
+        }}
+        sx={{ display: { xs: 'block', md: 'none' } }}
+      >
+        <Box sx={{ px: 2, py: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+            <Avatar
+              sx={{
+                bgcolor: 'rgba(255, 255, 255, 0.2)',
+                color: 'white',
+                fontWeight: 600,
+                width: 36,
+                height: 36,
+              }}
+            >
+              {user?.name?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
+            </Avatar>
+            <Box>
+              <Typography variant="subtitle2" fontWeight={600} noWrap>
+                {user?.name || 'User'}
+              </Typography>
+              <Typography variant="caption" sx={{ opacity: 0.7 }} noWrap>
+                {user?.email}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.15)' }} />
+        <List sx={{ px: 1, py: 1 }}>
+          {navItems.map((item) => (
+            <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
+              <ListItemButton
+                onClick={() => {
+                  navigate(item.path);
+                  setMobileDrawerOpen(false);
+                }}
+                sx={{
+                  borderRadius: 2,
+                  backgroundColor: isActivePath(item.path) ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' },
+                }}
+              >
+                <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.label}
+                  primaryTypographyProps={{ fontWeight: isActivePath(item.path) ? 600 : 400 }}
+                />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.15)' }} />
+        <List sx={{ px: 1, py: 1 }}>
+          <ListItem disablePadding sx={{ mb: 0.5 }}>
+            <ListItemButton
+              onClick={() => { navigate('/profile'); setMobileDrawerOpen(false); }}
+              sx={{ borderRadius: 2, '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } }}
+            >
+              <ListItemIcon sx={{ color: 'white', minWidth: 40 }}><AccountCircle /></ListItemIcon>
+              <ListItemText primary="Profile" />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding sx={{ mb: 0.5 }}>
+            <ListItemButton
+              onClick={() => { navigate('/settings'); setMobileDrawerOpen(false); }}
+              sx={{ borderRadius: 2, '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } }}
+            >
+              <ListItemIcon sx={{ color: 'white', minWidth: 40 }}><Settings /></ListItemIcon>
+              <ListItemText primary="Settings" />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={() => { handleLogout(); setMobileDrawerOpen(false); }}
+              sx={{ borderRadius: 2, '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' } }}
+            >
+              <ListItemIcon sx={{ color: '#fca5a5', minWidth: 40 }}><Logout /></ListItemIcon>
+              <ListItemText primary="Logout" primaryTypographyProps={{ color: '#fca5a5' }} />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      </Drawer>
 
       {/* Notifications Menu */}
       <Menu
@@ -270,7 +388,7 @@ export default function MainLayout({ children }) {
         <MenuItem
           onClick={() => {
             handleCloseUserMenu();
-            navigate('/settings');
+            navigate('/profile');
           }}
           sx={{ py: 1.5 }}
         >

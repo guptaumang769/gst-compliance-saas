@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+function getApiBaseUrl() {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl) return '/api';
+  // Ensure the URL ends with /api
+  return envUrl.endsWith('/api') ? envUrl : `${envUrl.replace(/\/$/, '')}/api`;
+}
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -38,7 +45,14 @@ api.interceptors.response.use(
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
-  getProfile: () => api.get('/auth/profile'),
+  getProfile: () => api.get('/auth/me'),
+  changePassword: (data) => api.post('/auth/change-password', data),
+  updateProfile: (data) => api.put('/auth/profile', data),
+  updateSettings: (data) => api.put('/auth/settings', data),
+  verifyEmail: (data) => api.post('/auth/verify-email', data),
+  resendVerification: (data) => api.post('/auth/resend-verification', data),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
 };
 
 // Customer API
@@ -62,6 +76,7 @@ export const invoiceAPI = {
   generatePDF: (id) => api.post(`/invoices/${id}/generate-pdf`),
   downloadPDF: (id) => api.get(`/invoices/${id}/download-pdf`, { responseType: 'blob' }),
   sendEmail: (id, data) => api.post(`/invoices/${id}/send-email`, data),
+  markAsFiled: (id, data) => api.patch(`/invoices/${id}/mark-filed`, data),
 };
 
 // Supplier API
@@ -82,6 +97,7 @@ export const purchaseAPI = {
   update: (id, data) => api.put(`/purchases/${id}`, data),
   delete: (id) => api.delete(`/purchases/${id}`),
   markAsPaid: (id, data) => api.patch(`/purchases/${id}/mark-paid`, data),
+  markAsFiled: (id, data) => api.patch(`/purchases/${id}/mark-filed`, data),
   getStats: () => api.get('/purchases/stats'),
   calculateITC: (year, month) => api.get(`/purchases/itc/${year}/${month}`),
 };
@@ -145,19 +161,25 @@ export const gstrAPI = {
       : `/gstr3b/${year}/${month}/export/json`;
     return api.get(endpoint);
   },
+  updateStatus: (returnType, id, status, acknowledgeNumber) => {
+    const endpoint = returnType === 'GSTR1' 
+      ? `/gstr1/${id}/status` 
+      : `/gstr3b/${id}/status`;
+    return api.put(endpoint, { status, acknowledgeNumber });
+  },
 };
 
 // Payment API
 export const paymentAPI = {
   createOrder: (data) => api.post('/payments/create-order', data),
   verifyPayment: (data) => api.post('/payments/verify', data),
-  getAll: (params) => api.get('/payments', { params }),
+  getAll: (params) => api.get('/payments/history', { params }),
 };
 
 // Subscription API
 export const subscriptionAPI = {
   getPlans: () => api.get('/subscriptions/plans'),
-  getCurrent: () => api.get('/subscriptions/current'),
+  getCurrent: () => api.get('/subscriptions/status'),
   getUsage: () => api.get('/subscriptions/usage'),
   checkLimit: (feature) => api.post('/subscriptions/check-limit', { feature }),
 };

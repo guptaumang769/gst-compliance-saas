@@ -42,7 +42,7 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { customerAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
-import { MESSAGES, INDIAN_STATES, VALIDATION_MESSAGES } from '../utils/constants';
+import { MESSAGES, INDIAN_STATES, VALIDATION_MESSAGES, getStateFromGSTIN } from '../utils/constants';
 import { formatDate } from '../utils/formatters';
 
 // Validation schema - Dynamic based on customer type
@@ -252,7 +252,7 @@ export default function CustomersPage() {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
             Customers
@@ -261,12 +261,13 @@ export default function CustomersPage() {
             Manage your customer database
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button
             variant="outlined"
             startIcon={<FileDownload />}
             onClick={handleExportCSV}
             disabled={customers.length === 0}
+            size="small"
           >
             Export CSV
           </Button>
@@ -275,6 +276,7 @@ export default function CustomersPage() {
             startIcon={<Add />}
             onClick={() => handleOpenDialog()}
             className="gradient-button-primary"
+            size="small"
           >
             Add Customer
           </Button>
@@ -499,7 +501,11 @@ export default function CustomersPage() {
                   name="gstin"
                   label={formik.values.customerType === 'b2b' ? 'GSTIN *' : 'GSTIN (Optional)'}
                   value={formik.values.gstin}
-                  onChange={formik.handleChange}
+                  onChange={(e) => {
+                    formik.handleChange(e);
+                    const state = getStateFromGSTIN(e.target.value);
+                    if (state) formik.setFieldValue('state', state);
+                  }}
                   onBlur={formik.handleBlur}
                   error={formik.touched.gstin && Boolean(formik.errors.gstin)}
                   helperText={formik.touched.gstin && formik.errors.gstin}

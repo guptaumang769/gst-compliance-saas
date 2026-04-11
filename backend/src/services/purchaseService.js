@@ -229,7 +229,7 @@ async function createPurchase(purchaseData) {
  * @returns {Promise<Array>} - List of purchases
  */
 async function getPurchases(businessId, filters = {}) {
-  const { supplierId, startDate, endDate, purchaseType, isItcEligible, page = 1, limit = 50 } = filters;
+  const { supplierId, startDate, endDate, purchaseType, isItcEligible, search, status, page = 1, limit = 50 } = filters;
 
   const where = {
     businessId,
@@ -258,6 +258,26 @@ async function getPurchases(businessId, filters = {}) {
     }
   }
 
+  // Search by supplier name or invoice number
+  if (search) {
+    where.OR = [
+      { supplierInvoiceNumber: { contains: search, mode: 'insensitive' } },
+      { supplier: { supplierName: { contains: search, mode: 'insensitive' } } }
+    ];
+  }
+
+  // Filter by payment status
+  if (status) {
+    switch (status.toLowerCase()) {
+      case 'paid':
+        where.isPaid = true;
+        break;
+      case 'pending':
+        where.isPaid = false;
+        break;
+    }
+  }
+
   const skip = (page - 1) * limit;
 
   const [purchases, total] = await Promise.all([
@@ -269,7 +289,8 @@ async function getPurchases(businessId, filters = {}) {
             id: true,
             supplierName: true,
             gstin: true,
-            state: true
+            state: true,
+            stateCode: true
           }
         },
         items: true
@@ -333,7 +354,7 @@ async function updatePurchase(purchaseId, businessId, updateData) {
     throw new Error('Cannot update purchase: already filed in GSTR-2');
   }
 
-  const { notes, isPaid, paymentDate, paymentMethod, isItcEligible, itcClaimType, items } = updateData;
+  const { notes, isPaid, paymentDate, paymentMethod, isItcEligible, itcClaimType, items, reverseCharge } = updateData;
 
   // If items are being updated, recalculate GST
   if (items && items.length > 0) {
@@ -450,6 +471,7 @@ async function updatePurchase(purchaseId, businessId, updateData) {
           notes: notes !== undefined ? notes : purchase.notes,
           isPaid: isPaid !== undefined ? isPaid : purchase.isPaid,
           isItcEligible: isItcEligible !== undefined ? isItcEligible : purchase.isItcEligible,
+          reverseCharge: reverseCharge !== undefined ? reverseCharge : purchase.reverseCharge,
         },
         include: {
           supplier: true,
@@ -471,7 +493,8 @@ async function updatePurchase(purchaseId, businessId, updateData) {
       paymentMethod: paymentMethod !== undefined ? paymentMethod : purchase.paymentMethod,
       isItcEligible: isItcEligible !== undefined ? isItcEligible : purchase.isItcEligible,
       itcClaimType: itcClaimType !== undefined ? itcClaimType : purchase.itcClaimType,
-      itcAmount: isItcEligible !== undefined && !isItcEligible ? 0 : purchase.itcAmount
+      itcAmount: isItcEligible !== undefined && !isItcEligible ? 0 : purchase.itcAmount,
+      reverseCharge: reverseCharge !== undefined ? reverseCharge : purchase.reverseCharge
     },
     include: {
       supplier: true,

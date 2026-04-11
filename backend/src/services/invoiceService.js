@@ -40,6 +40,32 @@ async function createInvoice(businessId, invoiceData) {
       throw new Error('Missing required fields: customerId, invoiceDate, items');
     }
     
+    // Validate each item has required fields
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const itemNum = i + 1;
+      if (!item.description && !item.itemName) {
+        throw new Error(`Item ${itemNum}: Description is required`);
+      }
+      if (!item.hsnCode) {
+        throw new Error(`Item ${itemNum}: HSN Code is required`);
+      }
+      if (!item.quantity || item.quantity < 1) {
+        throw new Error(`Item ${itemNum}: Quantity must be at least 1`);
+      }
+      if (item.unitPrice === undefined || item.unitPrice === null || item.unitPrice < 0) {
+        throw new Error(`Item ${itemNum}: Unit price is required and must be non-negative`);
+      }
+    }
+    
+    // Validate invoice date is not in the future
+    const invoiceDateObj = new Date(invoiceDate);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Allow same-day invoices
+    if (invoiceDateObj > today) {
+      throw new Error('Invoice date cannot be in the future');
+    }
+    
     // Get business details
     const business = await prisma.business.findUnique({
       where: { id: businessId }
@@ -210,6 +236,7 @@ async function getInvoices(businessId, options = {}) {
     page = 1,
     limit = 50,
     search,
+    status,
     invoiceType,
     customerId,
     startDate,
@@ -226,9 +253,11 @@ async function getInvoices(businessId, options = {}) {
       isActive: true
     };
     
+    // Search by invoice number or customer name
     if (search) {
       where.OR = [
-        { invoiceNumber: { contains: search, mode: 'insensitive' } }
+        { invoiceNumber: { contains: search, mode: 'insensitive' } },
+        { customer: { customerName: { contains: search, mode: 'insensitive' } } }
       ];
     }
     
@@ -252,6 +281,29 @@ async function getInvoices(businessId, options = {}) {
     
     if (filedInGstr1 !== undefined) {
       where.filedInGstr1 = filedInGstr1 === 'true';
+    }
+
+    // Filter by derived status (based on actual Invoice schema fields)
+    if (status) {
+      switch (status.toLowerCase()) {
+        case 'draft':
+          // Draft = no PDF generated, not filed, not sent
+          where.pdfGenerated = false;
+          where.filedInGstr1 = false;
+          break;
+        case 'generated':
+          // Generated = PDF generated but not filed
+          where.pdfGenerated = true;
+          where.filedInGstr1 = false;
+          break;
+        case 'filed':
+          where.filedInGstr1 = true;
+          break;
+        case 'sent':
+          where.emailSent = true;
+          where.filedInGstr1 = false;
+          break;
+      }
     }
     
     // Get invoices with count (include items for edit support)
@@ -396,6 +448,7 @@ async function updateInvoice(invoiceId, businessId, updateData) {
         invoiceDate: updateData.invoiceDate ? new Date(updateData.invoiceDate) : undefined,
         dueDate: updateData.dueDate ? new Date(updateData.dueDate) : undefined,
         notes: updateData.notes !== undefined ? updateData.notes : undefined,
+        reverseCharge: updateData.reverseCharge !== undefined ? updateData.reverseCharge : undefined,
         subtotal: gstCalculation.subtotal,
         taxableAmount: gstCalculation.taxableAmount,
         cgstAmount: gstCalculation.cgstAmount,
@@ -464,6 +517,7 @@ async function updateInvoice(invoiceId, businessId, updateData) {
       if (updateData.notes !== undefined) simpleUpdateData.notes = updateData.notes;
       if (updateData.invoiceDate) simpleUpdateData.invoiceDate = new Date(updateData.invoiceDate);
       if (updateData.dueDate) simpleUpdateData.dueDate = new Date(updateData.dueDate);
+      if (updateData.reverseCharge !== undefined) simpleUpdateData.reverseCharge = updateData.reverseCharge;
       
       if (Object.keys(simpleUpdateData).length > 0) {
         await prisma.invoice.update({
