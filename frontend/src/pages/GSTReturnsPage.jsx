@@ -255,6 +255,23 @@ export default function GSTReturnsPage() {
             <Typography variant="h5" fontWeight={700}>{s.b2csInvoices || 0}</Typography>
           </Paper>
         </Grid>
+        {/* Credit/Debit Notes Row */}
+        {(s.creditNotes > 0 || s.debitNotes > 0) && (
+          <>
+            <Grid item xs={6} md={3}>
+              <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'success.50' }}>
+                <Typography variant="caption" color="text.secondary">Credit Notes</Typography>
+                <Typography variant="h5" fontWeight={700} color="success.main">{s.creditNotes || 0}</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={6} md={3}>
+              <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'error.50' }}>
+                <Typography variant="caption" color="text.secondary">Debit Notes</Typography>
+                <Typography variant="h5" fontWeight={700} color="error.main">{s.debitNotes || 0}</Typography>
+              </Paper>
+            </Grid>
+          </>
+        )}
         <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>
         <Grid item xs={6} md={4}>
           <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
@@ -428,6 +445,129 @@ export default function GSTReturnsPage() {
                 <TableCell>{formatCurrency(item.iamt || 0)}</TableCell>
               </TableRow>
             ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    );
+  };
+
+  const renderCDNR = (data) => {
+    const cdnr = data?.cdnr || [];
+    if (cdnr.length === 0) return <Typography color="text.secondary">No Credit/Debit Notes for registered customers in this period</Typography>;
+    return cdnr.map((customer, idx) => (
+      <Accordion key={idx} defaultExpanded={idx === 0}>
+        <AccordionSummary expandIcon={<ExpandMore />}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', width: '100%' }}>
+            <Typography fontWeight={700}>{customer.cname || 'Unknown'}</Typography>
+            <Chip label={customer.ctin} size="small" variant="outlined" />
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', mr: 2 }}>
+              {customer.nt?.length || 0} note(s)
+            </Typography>
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Note #</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Orig. Invoice</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Reason</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Value</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>GST Rate</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Taxable</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>CGST</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>SGST</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>IGST</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(customer.nt || []).map((note, noteIdx) =>
+                  (note.itms || []).map((itm, itmIdx) => (
+                    <TableRow key={`${noteIdx}-${itmIdx}`}>
+                      {itmIdx === 0 && (
+                        <>
+                          <TableCell rowSpan={note.itms.length}>
+                            <Chip 
+                              label={note.ntty === 'C' ? 'Credit' : 'Debit'} 
+                              size="small" 
+                              color={note.ntty === 'C' ? 'success' : 'error'} 
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell rowSpan={note.itms.length}>{note.nt_num}</TableCell>
+                          <TableCell rowSpan={note.itms.length}>{note.nt_dt}</TableCell>
+                          <TableCell rowSpan={note.itms.length}>{note.inum || '-'}</TableCell>
+                          <TableCell rowSpan={note.itms.length}>{note.rsn}</TableCell>
+                          <TableCell rowSpan={note.itms.length}>{formatCurrency(note.val)}</TableCell>
+                        </>
+                      )}
+                      <TableCell>{itm.itm_det?.rt}%</TableCell>
+                      <TableCell>{formatCurrency(itm.itm_det?.txval || 0)}</TableCell>
+                      <TableCell>{formatCurrency(itm.itm_det?.camt || 0)}</TableCell>
+                      <TableCell>{formatCurrency(itm.itm_det?.samt || 0)}</TableCell>
+                      <TableCell>{formatCurrency(itm.itm_det?.iamt || 0)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </AccordionDetails>
+      </Accordion>
+    ));
+  };
+
+  const renderCDNUR = (data) => {
+    const cdnur = data?.cdnur || [];
+    if (cdnur.length === 0) return <Typography color="text.secondary">No Credit/Debit Notes for unregistered customers (B2CL) in this period</Typography>;
+    return (
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Note #</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Place of Supply</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Orig. Invoice</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Reason</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Value</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>GST Rate</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Taxable</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>IGST</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {cdnur.map((note, noteIdx) =>
+              (note.itms || []).map((itm, itmIdx) => (
+                <TableRow key={`${noteIdx}-${itmIdx}`}>
+                  {itmIdx === 0 && (
+                    <>
+                      <TableCell rowSpan={note.itms.length}>
+                        <Chip 
+                          label={note.ntty === 'C' ? 'Credit' : 'Debit'} 
+                          size="small" 
+                          color={note.ntty === 'C' ? 'success' : 'error'} 
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell rowSpan={note.itms.length}>{note.nt_num}</TableCell>
+                      <TableCell rowSpan={note.itms.length}>{note.nt_dt}</TableCell>
+                      <TableCell rowSpan={note.itms.length}>{note.pos}</TableCell>
+                      <TableCell rowSpan={note.itms.length}>{note.inum || '-'}</TableCell>
+                      <TableCell rowSpan={note.itms.length}>{note.rsn}</TableCell>
+                      <TableCell rowSpan={note.itms.length}>{formatCurrency(note.val)}</TableCell>
+                    </>
+                  )}
+                  <TableCell>{itm.itm_det?.rt}%</TableCell>
+                  <TableCell>{formatCurrency(itm.itm_det?.txval || 0)}</TableCell>
+                  <TableCell>{formatCurrency(itm.itm_det?.iamt || 0)}</TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -941,6 +1081,8 @@ export default function GSTReturnsPage() {
                 <Tab label={`B2B (${detailData.b2b?.length || 0})`} />
                 <Tab label={`B2C Small (${detailData.b2cs?.length || 0})`} />
                 <Tab label={`B2C Large (${detailData.b2cl?.length || 0})`} />
+                <Tab label={`CDNR (${detailData.cdnr?.length || 0})`} />
+                <Tab label={`CDNUR (${detailData.cdnur?.length || 0})`} />
                 <Tab label="HSN Summary" />
               </Tabs>
               {detailTab === 0 && renderSummary(detailData)}
@@ -955,7 +1097,9 @@ export default function GSTReturnsPage() {
                   <Typography color="text.secondary">No B2C Large invoices in this period</Typography>
                 )
               )}
-              {detailTab === 4 && renderHSN(detailData)}
+              {detailTab === 4 && renderCDNR(detailData)}
+              {detailTab === 5 && renderCDNUR(detailData)}
+              {detailTab === 6 && renderHSN(detailData)}
             </Box>
           ) : (
             renderGSTR3BDetail(detailData)
