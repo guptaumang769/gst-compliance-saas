@@ -193,4 +193,37 @@ export const creditDebitNoteAPI = {
   delete: (id) => api.delete(`/credit-debit-notes/${id}`),
 };
 
+// GSTR-2A/2B Reconciliation API
+export const gstr2ReconciliationAPI = {
+  // Get available filing periods
+  getPeriods: () => api.get('/gstr2-reconciliation/periods'),
+  
+  // Get reconciliation entries with filters
+  getEntries: (params) => api.get('/gstr2-reconciliation/entries', { params }),
+  
+  // Get reconciliation summary for a period
+  getSummary: (filingPeriod) => api.get(`/gstr2-reconciliation/summary/${filingPeriod}`),
+  
+  // Get ITC report from GSTR-2B
+  getItcReport: (filingPeriod) => api.get(`/gstr2-reconciliation/itc-report/${filingPeriod}`),
+  
+  // Get purchases not in GSTR-2A/2B
+  getUnmatchedPurchases: (filingPeriod) => api.get(`/gstr2-reconciliation/unmatched-purchases/${filingPeriod}`),
+  
+  // Import single GSTR-2A/2B entry
+  importEntry: (data) => api.post('/gstr2-reconciliation/import', data),
+  
+  // Import bulk entries
+  importBulk: (data) => api.post('/gstr2-reconciliation/import/bulk', data),
+  
+  // Run reconciliation
+  runReconciliation: (filingPeriod) => api.post('/gstr2-reconciliation/reconcile', { filingPeriod }),
+  
+  // Update action on entry
+  updateAction: (id, data) => api.put(`/gstr2-reconciliation/entries/${id}/action`, data),
+  
+  // Delete entry
+  deleteEntry: (id) => api.delete(`/gstr2-reconciliation/entries/${id}`),
+};
+
 export default api;

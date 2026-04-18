@@ -97,6 +97,7 @@ model Business {
   gstReturns GSTReturn[]
   payments Payment[]
   creditDebitNotes CreditDebitNote[]
+  gstr2Reconciliations GSTR2Reconciliation[]
 
   @@index([userId])
   @@index([gstin])
@@ -376,6 +377,7 @@ model Purchase {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   supplier Supplier @relation(fields: [supplierId], references: [id])
   items    PurchaseItem[]
+  gstr2Reconciliations GSTR2Reconciliation[]
   
   @@unique([businessId, supplierInvoiceNumber, supplierId])
   @@index([businessId])
@@ -649,6 +651,74 @@ model CreditDebitNoteItem {
   
   @@index([creditDebitNoteId])
   @@map("credit_debit_note_items")
+}
+
+// GSTR-2A/2B Reconciliation Model
+// Stores supplier-wise data from GSTR-2A/2B for reconciliation with purchase records
+model GSTR2Reconciliation {
+  id                    String    @id @default(uuid())
+  businessId            String    @map("business_id")
+  
+  // Period
+  filingPeriod          String    @map("filing_period") // "YYYY-MM"
+  financialYear         String    @map("financial_year") // "2025-2026"
+  dataSource            String    @map("data_source") // "gstr2a", "gstr2b", "manual"
+  
+  // Supplier Invoice Details (from GSTR-2A/2B)
+  supplierGstin         String    @map("supplier_gstin")
+  supplierName          String?   @map("supplier_name")
+  supplierInvoiceNumber String    @map("supplier_invoice_number")
+  supplierInvoiceDate   DateTime  @map("supplier_invoice_date")
+  invoiceType           String    @default("R") @map("invoice_type") // R=Regular, DE=Deemed Export, etc.
+  
+  // Amounts from GSTR-2A/2B
+  taxableAmount         Decimal   @map("taxable_amount") @db.Decimal(12, 2)
+  cgstAmount            Decimal   @default(0) @map("cgst_amount") @db.Decimal(12, 2)
+  sgstAmount            Decimal   @default(0) @map("sgst_amount") @db.Decimal(12, 2)
+  igstAmount            Decimal   @default(0) @map("igst_amount") @db.Decimal(12, 2)
+  cessAmount            Decimal   @default(0) @map("cess_amount") @db.Decimal(12, 2)
+  totalTaxAmount        Decimal   @map("total_tax_amount") @db.Decimal(12, 2)
+  totalAmount           Decimal   @map("total_amount") @db.Decimal(12, 2)
+  
+  // Place of Supply
+  placeOfSupply         String?   @map("place_of_supply")
+  reverseCharge         Boolean   @default(false) @map("reverse_charge")
+  
+  // ITC Eligibility (from GSTR-2B)
+  itcAvailability       String    @default("available") @map("itc_availability") // available, not_available, ineligible
+  itcAmount             Decimal   @default(0) @map("itc_amount") @db.Decimal(12, 2)
+  
+  // Reconciliation Status
+  reconciliationStatus  String    @default("pending") @map("reconciliation_status") // pending, matched, mismatched, unmatched, duplicate
+  matchedPurchaseId     String?   @map("matched_purchase_id")
+  
+  // Mismatch Details (if any)
+  mismatchType          String?   @map("mismatch_type") // amount, date, gstin, invoice_number
+  mismatchDetails       Json?     @map("mismatch_details") // Details of what doesn't match
+  taxableAmountDiff     Decimal   @default(0) @map("taxable_amount_diff") @db.Decimal(12, 2)
+  taxAmountDiff         Decimal   @default(0) @map("tax_amount_diff") @db.Decimal(12, 2)
+  
+  // Action Taken
+  actionTaken           String?   @map("action_taken") // accept_gstr2a, accept_books, pending_clarification
+  actionNotes           String?   @map("action_notes")
+  actionTakenAt         DateTime? @map("action_taken_at")
+  
+  // Metadata
+  importedAt            DateTime  @default(now()) @map("imported_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  business              Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  matchedPurchase       Purchase? @relation(fields: [matchedPurchaseId], references: [id])
+  
+  @@unique([businessId, supplierGstin, supplierInvoiceNumber, filingPeriod])
+  @@index([businessId])
+  @@index([filingPeriod])
+  @@index([supplierGstin])
+  @@index([reconciliationStatus])
+  @@index([matchedPurchaseId])
+  @@map("gstr2_reconciliations")
 }
 
 // TODO: Add more models in future weeks

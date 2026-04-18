@@ -36,6 +36,7 @@ import {
   LocalShipping,
   CardMembership,
   NoteAdd,
+  CompareArrows,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 
@@ -47,7 +48,8 @@ const navItems = [
   { label: 'Purchases', path: '/purchases', icon: <ShoppingCart /> },
   { label: 'CN/DN', path: '/credit-debit-notes', icon: <NoteAdd /> },
   { label: 'GST Returns', path: '/gst-returns', icon: <Assessment /> },
-  { label: 'Compliance Calendar', path: '/compliance-calendar', icon: <CalendarMonth /> },
+  { label: '2A/2B', path: '/gstr2-reconciliation', icon: <CompareArrows /> },
+  { label: 'Calendar', path: '/compliance-calendar', icon: <CalendarMonth /> },
   { label: 'Pricing', path: '/pricing', icon: <CardMembership /> },
 ];
 

@@ -17,6 +17,7 @@ import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 import PricingPage from './pages/PricingPage';
 import CreditDebitNotesPage from './pages/CreditDebitNotesPage';
+import GSTR2ReconciliationPage from './pages/GSTR2ReconciliationPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -150,6 +151,14 @@ function App() {
         element={
           <ProtectedRoute>
             <CreditDebitNotesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/gstr2-reconciliation"
+        element={
+          <ProtectedRoute>
+            <GSTR2ReconciliationPage />
           </ProtectedRoute>
         }
       />
