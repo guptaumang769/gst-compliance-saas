@@ -750,6 +750,92 @@ async function generateItcReport(businessId, filingPeriod) {
   return report;
 }
 
+/**
+ * Update a GSTR-2A/2B entry
+ */
+async function updateEntry(entryId, businessId, updateData) {
+  const entry = await prisma.gSTR2Reconciliation.findFirst({
+    where: { id: entryId, businessId }
+  });
+
+  if (!entry) {
+    throw new Error('Entry not found');
+  }
+
+  const {
+    supplierGstin,
+    supplierName,
+    supplierInvoiceNumber,
+    supplierInvoiceDate,
+    taxableAmount,
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
+    cessAmount,
+    itcAvailability
+  } = updateData;
+
+  // Safely parse all amounts
+  const parsedTaxableAmount = safeParseFloat(taxableAmount);
+  const parsedCgst = safeParseFloat(cgstAmount);
+  const parsedSgst = safeParseFloat(sgstAmount);
+  const parsedIgst = safeParseFloat(igstAmount);
+  const parsedCess = safeParseFloat(cessAmount);
+  
+  const totalTaxAmount = parsedCgst + parsedSgst + parsedIgst + parsedCess;
+  const totalAmount = parsedTaxableAmount + totalTaxAmount;
+  const effectiveItcAvailability = itcAvailability || entry.itcAvailability;
+  const itcAmount = effectiveItcAvailability === 'available' ? totalTaxAmount : 0;
+
+  // Reset reconciliation status to pending so it can be re-reconciled
+  const updatedEntry = await prisma.gSTR2Reconciliation.update({
+    where: { id: entryId },
+    data: {
+      supplierGstin: supplierGstin || entry.supplierGstin,
+      supplierName: supplierName || entry.supplierName,
+      supplierInvoiceNumber: supplierInvoiceNumber || entry.supplierInvoiceNumber,
+      supplierInvoiceDate: supplierInvoiceDate ? new Date(supplierInvoiceDate) : entry.supplierInvoiceDate,
+      taxableAmount: parsedTaxableAmount || entry.taxableAmount,
+      cgstAmount: parsedCgst,
+      sgstAmount: parsedSgst,
+      igstAmount: parsedIgst,
+      cessAmount: parsedCess,
+      totalTaxAmount,
+      totalAmount,
+      itcAvailability: effectiveItcAvailability,
+      itcAmount,
+      reconciliationStatus: 'pending',
+      matchedPurchaseId: null,
+      mismatchType: null,
+      mismatchDetails: null,
+      taxableAmountDiff: 0,
+      taxAmountDiff: 0
+    }
+  });
+
+  return updatedEntry;
+}
+
+/**
+ * Get a single entry by ID
+ */
+async function getEntryById(entryId, businessId) {
+  const entry = await prisma.gSTR2Reconciliation.findFirst({
+    where: { id: entryId, businessId },
+    include: {
+      matchedPurchase: {
+        include: { supplier: true }
+      }
+    }
+  });
+
+  if (!entry) {
+    throw new Error('Entry not found');
+  }
+
+  return entry;
+}
+
 module.exports = {
   importSingleEntry,
   importBulkEntries,
@@ -758,6 +844,8 @@ module.exports = {
   getReconciliationEntries,
   getPurchasesNotInGstr2,
   updateReconciliationAction,
+  updateEntry,
+  getEntryById,
   deleteReconciliationEntry,
   getAvailablePeriods,
   generateItcReport

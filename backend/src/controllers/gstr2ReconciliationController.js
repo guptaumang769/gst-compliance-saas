@@ -273,6 +273,47 @@ async function generateItcReport(req, res) {
   }
 }
 
+async function updateEntry(req, res) {
+  try {
+    const businessId = await getBusinessId(req.user.userId);
+    const { id } = req.params;
+
+    const entry = await gstr2ReconciliationService.updateEntry(id, businessId, req.body);
+    
+    res.json({
+      success: true,
+      message: 'Entry updated successfully. Run reconciliation again to re-match.',
+      entry
+    });
+  } catch (error) {
+    console.error('Error updating entry:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+async function getEntryById(req, res) {
+  try {
+    const businessId = await getBusinessId(req.user.userId);
+    const { id } = req.params;
+
+    const entry = await gstr2ReconciliationService.getEntryById(id, businessId);
+    
+    res.json({
+      success: true,
+      entry
+    });
+  } catch (error) {
+    console.error('Error getting entry:', error);
+    res.status(404).json({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   importSingleEntry,
   importBulkEntries,
@@ -281,6 +322,8 @@ module.exports = {
   getReconciliationEntries,
   getPurchasesNotInGstr2,
   updateReconciliationAction,
+  updateEntry,
+  getEntryById,
   deleteReconciliationEntry,
   getAvailablePeriods,
   generateItcReport
