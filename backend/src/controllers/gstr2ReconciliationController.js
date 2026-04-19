@@ -3,10 +3,21 @@
  */
 
 const gstr2ReconciliationService = require('../services/gstr2ReconciliationService');
+const prisma = require('../config/database');
+
+async function getBusinessId(userId) {
+  const business = await prisma.business.findFirst({
+    where: { userId, isActive: true }
+  });
+  if (!business) {
+    throw new Error('No active business found');
+  }
+  return business.id;
+}
 
 async function importSingleEntry(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const businessId = await getBusinessId(req.user.userId);
     const entry = await gstr2ReconciliationService.importSingleEntry(businessId, req.body);
     res.status(201).json({
       success: true,
@@ -24,7 +35,7 @@ async function importSingleEntry(req, res) {
 
 async function importBulkEntries(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const businessId = await getBusinessId(req.user.userId);
     const { filingPeriod, dataSource, entries } = req.body;
 
     if (!filingPeriod || !dataSource || !entries || !Array.isArray(entries)) {
@@ -57,7 +68,7 @@ async function importBulkEntries(req, res) {
 
 async function runReconciliation(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const businessId = await getBusinessId(req.user.userId);
     const { filingPeriod } = req.body;
 
     if (!filingPeriod) {
@@ -85,7 +96,7 @@ async function runReconciliation(req, res) {
 
 async function getReconciliationSummary(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const businessId = await getBusinessId(req.user.userId);
     const { filingPeriod } = req.params;
 
     if (!filingPeriod) {
@@ -112,7 +123,7 @@ async function getReconciliationSummary(req, res) {
 
 async function getReconciliationEntries(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const businessId = await getBusinessId(req.user.userId);
     const filters = {
       filingPeriod: req.query.filingPeriod,
       status: req.query.status,
@@ -139,7 +150,7 @@ async function getReconciliationEntries(req, res) {
 
 async function getPurchasesNotInGstr2(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const businessId = await getBusinessId(req.user.userId);
     const { filingPeriod } = req.params;
 
     if (!filingPeriod) {
@@ -167,7 +178,7 @@ async function getPurchasesNotInGstr2(req, res) {
 
 async function updateReconciliationAction(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const businessId = await getBusinessId(req.user.userId);
     const { id } = req.params;
     const { actionTaken, actionNotes } = req.body;
 
@@ -199,7 +210,7 @@ async function updateReconciliationAction(req, res) {
 
 async function deleteReconciliationEntry(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const businessId = await getBusinessId(req.user.userId);
     const { id } = req.params;
 
     await gstr2ReconciliationService.deleteReconciliationEntry(id, businessId);
@@ -219,7 +230,7 @@ async function deleteReconciliationEntry(req, res) {
 
 async function getAvailablePeriods(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const businessId = await getBusinessId(req.user.userId);
     const periods = await gstr2ReconciliationService.getAvailablePeriods(businessId);
     
     res.json({
@@ -237,7 +248,7 @@ async function getAvailablePeriods(req, res) {
 
 async function generateItcReport(req, res) {
   try {
-    const businessId = req.user.businessId;
+    const businessId = await getBusinessId(req.user.userId);
     const { filingPeriod } = req.params;
 
     if (!filingPeriod) {
