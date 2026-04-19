@@ -18,6 +18,15 @@ const prisma = require('../config/database');
 const AMOUNT_TOLERANCE = 1.0;
 
 /**
+ * Helper to safely parse float, returns 0 for empty/invalid values
+ */
+function safeParseFloat(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+/**
  * Import GSTR-2A/2B data manually (single entry)
  */
 async function importSingleEntry(businessId, entryData) {
@@ -31,10 +40,10 @@ async function importSingleEntry(businessId, entryData) {
     supplierInvoiceDate,
     invoiceType = 'R',
     taxableAmount,
-    cgstAmount = 0,
-    sgstAmount = 0,
-    igstAmount = 0,
-    cessAmount = 0,
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
+    cessAmount,
     placeOfSupply,
     reverseCharge = false,
     itcAvailability = 'available'
@@ -45,8 +54,15 @@ async function importSingleEntry(businessId, entryData) {
     throw new Error('Missing required fields: filingPeriod, supplierGstin, supplierInvoiceNumber, supplierInvoiceDate, taxableAmount');
   }
 
-  const totalTaxAmount = parseFloat(cgstAmount) + parseFloat(sgstAmount) + parseFloat(igstAmount) + parseFloat(cessAmount);
-  const totalAmount = parseFloat(taxableAmount) + totalTaxAmount;
+  // Safely parse all amounts
+  const parsedTaxableAmount = safeParseFloat(taxableAmount);
+  const parsedCgst = safeParseFloat(cgstAmount);
+  const parsedSgst = safeParseFloat(sgstAmount);
+  const parsedIgst = safeParseFloat(igstAmount);
+  const parsedCess = safeParseFloat(cessAmount);
+  
+  const totalTaxAmount = parsedCgst + parsedSgst + parsedIgst + parsedCess;
+  const totalAmount = parsedTaxableAmount + totalTaxAmount;
   const itcAmount = itcAvailability === 'available' ? totalTaxAmount : 0;
 
   // Calculate financial year if not provided
@@ -73,18 +89,18 @@ async function importSingleEntry(businessId, entryData) {
       financialYear: effectiveFinancialYear,
       dataSource,
       supplierGstin,
-      supplierName,
+      supplierName: supplierName || null,
       supplierInvoiceNumber,
       supplierInvoiceDate: new Date(supplierInvoiceDate),
       invoiceType,
-      taxableAmount: parseFloat(taxableAmount),
-      cgstAmount: parseFloat(cgstAmount),
-      sgstAmount: parseFloat(sgstAmount),
-      igstAmount: parseFloat(igstAmount),
-      cessAmount: parseFloat(cessAmount),
+      taxableAmount: parsedTaxableAmount,
+      cgstAmount: parsedCgst,
+      sgstAmount: parsedSgst,
+      igstAmount: parsedIgst,
+      cessAmount: parsedCess,
       totalTaxAmount,
       totalAmount,
-      placeOfSupply,
+      placeOfSupply: placeOfSupply || null,
       reverseCharge,
       itcAvailability,
       itcAmount,
