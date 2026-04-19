@@ -54,9 +54,10 @@ app.get('/api', (req, res) => {
       gstr1: '/api/gstr1 ✅',
       gstr3b: '/api/gstr3b ✅',
       creditDebitNotes: '/api/credit-debit-notes ✅',
-      subscriptions: '/api/subscriptions ✅ NEW',
-      payments: '/api/payments ✅ NEW',
-      webhooks: '/api/webhooks ✅ NEW'
+      gstr2Reconciliation: '/api/gstr2-reconciliation ✅ NEW',
+      subscriptions: '/api/subscriptions ✅',
+      payments: '/api/payments ✅',
+      webhooks: '/api/webhooks ✅'
     },
     documentation: 'See /docs folder in repository'
   });
@@ -86,6 +87,7 @@ app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/gstr1', require('./routes/gstr1Routes'));
 app.use('/api/gstr3b', require('./routes/gstr3bRoutes'));
 app.use('/api/credit-debit-notes', require('./routes/creditDebitNoteRoutes'));
+app.use('/api/gstr2-reconciliation', require('./routes/gstr2ReconciliationRoutes'));
 
 // ============================================
 // API Routes - Week 11-12: Subscription & Payments

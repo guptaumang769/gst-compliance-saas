@@ -137,17 +137,30 @@ async function sendMail(mailOptions) {
 // ─── Email Functions ────────────────────────────────────────────────────────────
 
 async function sendInvoiceEmail(invoiceId, businessId, options = {}) {
-  const invoice = await prisma.invoice.findFirst({
+  let invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, businessId, isActive: true },
-    include: { business: true, customer: true }
+    include: { business: true, customer: true, items: true }
   });
 
   if (!invoice) throw new Error('Invoice not found');
-  if (!invoice.pdfGenerated || !invoice.pdfFilePath) {
-    throw new Error('Invoice PDF not generated. Please generate PDF first.');
-  }
-  if (!fs.existsSync(invoice.pdfFilePath)) {
-    throw new Error('Invoice PDF file not found on disk');
+
+  // Auto-generate PDF if not generated or file is missing (ephemeral storage on Render)
+  let pdfFilePath = invoice.pdfFilePath;
+  if (!invoice.pdfGenerated || !pdfFilePath || !fs.existsSync(pdfFilePath)) {
+    console.log('[Email Service] PDF not found on disk, auto-generating...');
+    const pdfService = require('./pdfService');
+    const pdfResult = await pdfService.generateInvoicePDF(invoice);
+    pdfFilePath = pdfResult.filePath;
+    
+    // Update invoice record with new PDF path
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        pdfGenerated: true,
+        pdfFilePath: pdfFilePath,
+        pdfGeneratedAt: new Date()
+      }
+    });
   }
 
   const toEmail = options.to || invoice.customer.email;
@@ -161,7 +174,7 @@ async function sendInvoiceEmail(invoiceId, businessId, options = {}) {
     to: toEmail,
     subject,
     html: htmlBody,
-    attachments: [{ filename: pdfFileName, path: invoice.pdfFilePath }]
+    attachments: [{ filename: pdfFileName, path: pdfFilePath }]
   });
 
   await prisma.invoice.update({
