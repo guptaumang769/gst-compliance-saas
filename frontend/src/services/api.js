@@ -201,6 +201,9 @@ export const gstr2ReconciliationAPI = {
   // Get reconciliation entries with filters
   getEntries: (params) => api.get('/gstr2-reconciliation/entries', { params }),
   
+  // Get single entry by ID
+  getEntryById: (id) => api.get(`/gstr2-reconciliation/entries/${id}`),
+  
   // Get reconciliation summary for a period
   getSummary: (filingPeriod) => api.get(`/gstr2-reconciliation/summary/${filingPeriod}`),
   
@@ -218,6 +221,9 @@ export const gstr2ReconciliationAPI = {
   
   // Run reconciliation
   runReconciliation: (filingPeriod) => api.post('/gstr2-reconciliation/reconcile', { filingPeriod }),
+  
+  // Update entry (edit)
+  updateEntry: (id, data) => api.put(`/gstr2-reconciliation/entries/${id}`, data),
   
   // Update action on entry
   updateAction: (id, data) => api.put(`/gstr2-reconciliation/entries/${id}/action`, data),

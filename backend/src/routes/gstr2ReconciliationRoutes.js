@@ -34,6 +34,12 @@ router.post('/import/bulk', gstr2ReconciliationController.importBulkEntries);
 // Run reconciliation for a period
 router.post('/reconcile', gstr2ReconciliationController.runReconciliation);
 
+// Get single entry by ID
+router.get('/entries/:id', gstr2ReconciliationController.getEntryById);
+
+// Update a reconciliation entry (edit)
+router.put('/entries/:id', gstr2ReconciliationController.updateEntry);
+
 // Update action on a reconciliation entry
 router.put('/entries/:id/action', gstr2ReconciliationController.updateReconciliationAction);
 

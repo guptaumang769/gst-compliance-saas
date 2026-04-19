@@ -109,6 +109,8 @@ export default function GSTR2ReconciliationPage() {
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionData, setActionData] = useState({ actionTaken: '', actionNotes: '' });
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState(null);
 
   const periodOptions = generatePeriodOptions();
 
@@ -221,6 +223,38 @@ export default function GSTR2ReconciliationPage() {
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to delete entry');
+    }
+  };
+
+  const handleOpenEditDialog = (entry) => {
+    setSelectedEntry(entry);
+    setEditFormData({
+      supplierGstin: entry.supplierGstin,
+      supplierName: entry.supplierName || '',
+      supplierInvoiceNumber: entry.supplierInvoiceNumber,
+      supplierInvoiceDate: entry.supplierInvoiceDate ? entry.supplierInvoiceDate.split('T')[0] : '',
+      taxableAmount: parseFloat(entry.taxableAmount) || '',
+      cgstAmount: parseFloat(entry.cgstAmount) || '',
+      sgstAmount: parseFloat(entry.sgstAmount) || '',
+      igstAmount: parseFloat(entry.igstAmount) || '',
+      cessAmount: parseFloat(entry.cessAmount) || '',
+      itcAvailability: entry.itcAvailability || 'available',
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editFormData.taxableAmount) {
+      toast.error('Taxable amount is required');
+      return;
+    }
+    try {
+      await gstr2ReconciliationAPI.updateEntry(selectedEntry.id, editFormData);
+      toast.success('Entry updated. Run reconciliation to re-match.');
+      setEditDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to update entry');
     }
   };
 
@@ -412,13 +446,11 @@ export default function GSTR2ReconciliationPage() {
                       <Visibility fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  {entry.reconciliationStatus !== 'matched' && (
-                    <Tooltip title="Take Action">
-                      <IconButton size="small" onClick={() => handleOpenActionDialog(entry)}>
-                        <Edit fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  )}
+                  <Tooltip title="Edit Entry">
+                    <IconButton size="small" color="primary" onClick={() => handleOpenEditDialog(entry)}>
+                      <Edit fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Tooltip title="Delete">
                     <IconButton size="small" color="error" onClick={() => handleDeleteEntry(entry.id)}>
                       <Delete fontSize="small" />
@@ -674,6 +706,135 @@ export default function GSTR2ReconciliationPage() {
     </Dialog>
   );
 
+  const renderEditDialog = () => (
+    <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
+      <DialogTitle>Edit GSTR-2A/2B Entry</DialogTitle>
+      <DialogContent>
+        {editFormData && (
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Supplier GSTIN"
+                value={editFormData.supplierGstin}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, supplierGstin: e.target.value.toUpperCase() }))}
+                inputProps={{ maxLength: 15 }}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Supplier Name"
+                value={editFormData.supplierName}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, supplierName: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Invoice Number"
+                value={editFormData.supplierInvoiceNumber}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, supplierInvoiceNumber: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Invoice Date"
+                value={editFormData.supplierInvoiceDate}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, supplierInvoiceDate: e.target.value }))}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <Alert severity="info" sx={{ mb: 1 }}>
+                Enter tax <strong>amounts in ₹</strong>, not rates. For 18% GST on ₹6,000: CGST=₹540, SGST=₹540 (intra-state) or IGST=₹1,080 (inter-state).
+              </Alert>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField
+                required
+                fullWidth
+                size="small"
+                type="number"
+                label="Taxable Amount (₹)"
+                value={editFormData.taxableAmount}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, taxableAmount: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="CGST (₹)"
+                value={editFormData.cgstAmount}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, cgstAmount: e.target.value }))}
+                placeholder="0"
+              />
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="SGST (₹)"
+                value={editFormData.sgstAmount}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, sgstAmount: e.target.value }))}
+                placeholder="0"
+              />
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="IGST (₹)"
+                value={editFormData.igstAmount}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, igstAmount: e.target.value }))}
+                placeholder="0"
+              />
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Cess (₹)"
+                value={editFormData.cessAmount}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, cessAmount: e.target.value }))}
+                placeholder="0"
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="ITC Availability"
+                value={editFormData.itcAvailability}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, itcAvailability: e.target.value }))}
+              >
+                <MenuItem value="available">Available</MenuItem>
+                <MenuItem value="not_available">Not Available</MenuItem>
+                <MenuItem value="ineligible">Ineligible</MenuItem>
+              </TextField>
+            </Grid>
+          </Grid>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+        <Button variant="contained" onClick={handleSaveEdit}>Save Changes</Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -776,6 +937,7 @@ export default function GSTR2ReconciliationPage() {
       {renderImportDialog()}
       {renderDetailDialog()}
       {renderActionDialog()}
+      {renderEditDialog()}
     </Box>
   );
 }
@@ -857,13 +1019,18 @@ function ImportManualForm({ filingPeriod, onSuccess }) {
             InputLabelProps={{ shrink: true }}
           />
         </Grid>
+        <Grid item xs={12}>
+          <Alert severity="info" sx={{ py: 0.5 }}>
+            Enter tax <strong>amounts in ₹</strong>, not rates. Example: For 18% GST on ₹6,000 → CGST=₹540, SGST=₹540 (intra-state) or IGST=₹1,080 (inter-state).
+          </Alert>
+        </Grid>
         <Grid item xs={12} md={4}>
           <TextField
             required
             fullWidth
             size="small"
             type="number"
-            label="Taxable Amount"
+            label="Taxable Amount (₹)"
             value={formData.taxableAmount}
             onChange={(e) => setFormData(prev => ({ ...prev, taxableAmount: e.target.value }))}
           />
@@ -873,9 +1040,10 @@ function ImportManualForm({ filingPeriod, onSuccess }) {
             fullWidth
             size="small"
             type="number"
-            label="CGST"
+            label="CGST (₹)"
             value={formData.cgstAmount}
             onChange={(e) => setFormData(prev => ({ ...prev, cgstAmount: e.target.value }))}
+            placeholder="0"
           />
         </Grid>
         <Grid item xs={6} md={2}>
@@ -883,9 +1051,10 @@ function ImportManualForm({ filingPeriod, onSuccess }) {
             fullWidth
             size="small"
             type="number"
-            label="SGST"
+            label="SGST (₹)"
             value={formData.sgstAmount}
             onChange={(e) => setFormData(prev => ({ ...prev, sgstAmount: e.target.value }))}
+            placeholder="0"
           />
         </Grid>
         <Grid item xs={6} md={2}>
@@ -893,9 +1062,10 @@ function ImportManualForm({ filingPeriod, onSuccess }) {
             fullWidth
             size="small"
             type="number"
-            label="IGST"
+            label="IGST (₹)"
             value={formData.igstAmount}
             onChange={(e) => setFormData(prev => ({ ...prev, igstAmount: e.target.value }))}
+            placeholder="0"
           />
         </Grid>
         <Grid item xs={6} md={2}>
@@ -903,9 +1073,10 @@ function ImportManualForm({ filingPeriod, onSuccess }) {
             fullWidth
             size="small"
             type="number"
-            label="Cess"
+            label="Cess (₹)"
             value={formData.cessAmount}
             onChange={(e) => setFormData(prev => ({ ...prev, cessAmount: e.target.value }))}
+            placeholder="0"
           />
         </Grid>
         <Grid item xs={12} md={4}>
