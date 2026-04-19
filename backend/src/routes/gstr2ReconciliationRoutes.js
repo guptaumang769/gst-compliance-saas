@@ -4,7 +4,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authMiddleware');
 const gstr2ReconciliationController = require('../controllers/gstr2ReconciliationController');
 
 // All routes require authentication
