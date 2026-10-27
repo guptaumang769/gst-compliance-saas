@@ -29,5 +29,9 @@ coverage/
 prisma/dev.db
 prisma/dev.db-journal
 
-# Uploads
-uploads/
+# Uploads (keep the folder tracked, ignore uploaded files)
+# Re-include the directory (a root .gitignore also ignores backend/uploads/),
+# then ignore its contents except the .gitkeep placeholder.
+!uploads/
+uploads/*
+!uploads/.gitkeep
