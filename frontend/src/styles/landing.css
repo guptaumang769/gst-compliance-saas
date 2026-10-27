@@ -1,0 +1,36 @@
+/* Landing page specific styles. Scoped to the .landing-page wrapper so we
+   never affect global styles used by the authenticated app. */
+
+.landing-page {
+  scroll-behavior: smooth;
+}
+
+/* Offset anchor scroll targets so sticky navbar doesn't overlap headings */
+.landing-page .landing-anchor {
+  scroll-margin-top: 88px;
+}
+
+/* Slow drifting gradient blobs used in the hero background */
+@keyframes landing-blob-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -24px, 0) scale(1.06);
+  }
+}
+
+.landing-blob {
+  animation: landing-blob-drift 10s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-page {
+    scroll-behavior: auto;
+  }
+  .landing-blob {
+    animation: none;
+  }
+}
