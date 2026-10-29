@@ -89,7 +89,7 @@ async function register(userData) {
           email,
           passwordHash,
           emailVerified: false,
-          role: 'owner',
+          role: 'OWNER',
           isActive: true
         }
       });
@@ -286,6 +286,11 @@ async function getUserProfile(userId) {
             bankAccountNumber: true,
             bankIfsc: true,
             bankBranch: true,
+            logoUrl: true,
+            invoicePrefix: true,
+            invoiceNumberFormat: true,
+            invoiceNextNumber: true,
+            defaultTerms: true,
           }
         }
       }
@@ -631,6 +636,21 @@ async function updateBusinessSettings(userId, settingsData) {
   if (settingsData.bankBranch !== undefined) updateData.bankBranch = settingsData.bankBranch;
   if (settingsData.filingFrequency !== undefined) updateData.filingFrequency = settingsData.filingFrequency;
 
+  // Invoice numbering customization
+  if (settingsData.invoicePrefix !== undefined) updateData.invoicePrefix = settingsData.invoicePrefix;
+  if (settingsData.invoiceNumberFormat !== undefined) updateData.invoiceNumberFormat = settingsData.invoiceNumberFormat;
+  if (settingsData.invoiceNextNumber !== undefined) {
+    const next = parseInt(settingsData.invoiceNextNumber, 10);
+    if (!Number.isNaN(next) && next >= 1) {
+      updateData.invoiceNextNumber = next;
+    }
+  }
+
+  // Default invoice Terms & Conditions template
+  if (settingsData.defaultTerms !== undefined) {
+    updateData.defaultTerms = settingsData.defaultTerms === '' ? null : settingsData.defaultTerms;
+  }
+
   const updated = await prisma.business.update({
     where: { id: business.id },
     data: updateData
@@ -640,6 +660,29 @@ async function updateBusinessSettings(userId, settingsData) {
     success: true,
     message: 'Settings updated successfully',
     business: updated
+  };
+}
+
+/**
+ * Save/replace the business logo URL for the user's active business
+ */
+async function updateBusinessLogo(userId, logoUrl) {
+  const business = await prisma.business.findFirst({
+    where: { userId, isActive: true }
+  });
+
+  if (!business) {
+    throw new Error('No active business found');
+  }
+
+  await prisma.business.update({
+    where: { id: business.id },
+    data: { logoUrl }
+  });
+
+  return {
+    success: true,
+    logoUrl
   };
 }
 
@@ -655,5 +698,6 @@ module.exports = {
   resendVerificationEmail,
   forgotPassword,
   resetPassword,
-  updateBusinessSettings
+  updateBusinessSettings,
+  updateBusinessLogo
 };

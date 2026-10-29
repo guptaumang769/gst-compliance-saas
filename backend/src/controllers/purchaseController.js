@@ -4,6 +4,7 @@
  */
 
 const purchaseService = require('../services/purchaseService');
+const auditService = require('../services/auditService');
 
 /**
  * Create a new purchase invoice
@@ -32,6 +33,14 @@ async function createPurchase(req, res) {
     };
 
     const purchase = await purchaseService.createPurchase(purchaseData);
+
+    auditService.logAudit({
+      businessId: business.id,
+      userId: req.user.userId,
+      action: 'create',
+      entityType: 'purchase',
+      entityId: purchase && purchase.id
+    }).catch(() => {});
 
     res.status(201).json({
       success: true,
@@ -165,6 +174,14 @@ async function updatePurchase(req, res) {
 
     const purchase = await purchaseService.updatePurchase(purchaseId, businessId, updateData);
 
+    auditService.logAudit({
+      businessId,
+      userId: req.user.userId,
+      action: 'update',
+      entityType: 'purchase',
+      entityId: purchaseId
+    }).catch(() => {});
+
     res.status(200).json({
       success: true,
       message: 'Purchase updated successfully',
@@ -204,6 +221,14 @@ async function deletePurchase(req, res) {
     const purchaseId = req.params.id;
 
     await purchaseService.deletePurchase(purchaseId, businessId);
+
+    auditService.logAudit({
+      businessId,
+      userId: req.user.userId,
+      action: 'delete',
+      entityType: 'purchase',
+      entityId: purchaseId
+    }).catch(() => {});
 
     res.status(200).json({
       success: true,

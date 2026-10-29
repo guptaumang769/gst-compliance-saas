@@ -4,7 +4,19 @@
  * Week 2: Authentication Module
  */
 
+const fs = require('fs');
+const path = require('path');
 const authService = require('../services/authService');
+const s3Service = require('../services/s3Service');
+
+const LOGO_UPLOAD_DIR = path.join(__dirname, '../../uploads/logos');
+
+const EXT_BY_MIME = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/webp': 'webp'
+};
 
 /**
  * POST /api/auth/register
@@ -333,6 +345,61 @@ async function updateSettings(req, res) {
   }
 }
 
+/**
+ * POST /api/auth/logo
+ * Upload a business logo (multipart/form-data, field name "logo").
+ * Uploads to S3 when configured, otherwise falls back to local disk storage
+ * served statically under /uploads.
+ */
+async function uploadLogo(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No logo file provided. Use multipart/form-data with field name "logo".'
+      });
+    }
+
+    const userId = req.user.userId;
+    const prisma = require('../config/database');
+    const business = await prisma.business.findFirst({
+      where: { userId, isActive: true }
+    });
+
+    if (!business) {
+      return res.status(404).json({ success: false, error: 'No active business found' });
+    }
+
+    const ext = EXT_BY_MIME[req.file.mimetype] || 'png';
+    const fileName = `${business.id}-${Date.now()}.${ext}`;
+
+    let logoUrl;
+
+    if (s3Service.isConfigured()) {
+      // Upload buffer to S3
+      const s3Key = `logos/${business.id}/${fileName}`;
+      logoUrl = await s3Service.uploadBuffer(req.file.buffer, s3Key, req.file.mimetype);
+    } else {
+      // Local fallback: persist under backend/uploads/logos and serve statically
+      if (!fs.existsSync(LOGO_UPLOAD_DIR)) {
+        fs.mkdirSync(LOGO_UPLOAD_DIR, { recursive: true });
+      }
+      const destPath = path.join(LOGO_UPLOAD_DIR, fileName);
+      fs.writeFileSync(destPath, req.file.buffer);
+      logoUrl = `${req.protocol}://${req.get('host')}/uploads/logos/${fileName}`;
+    }
+
+    const result = await authService.updateBusinessLogo(userId, logoUrl);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Upload logo error:', error);
+    return res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to upload logo'
+    });
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -344,5 +411,6 @@ module.exports = {
   resendVerification,
   forgotPassword,
   resetPassword,
-  updateSettings
+  updateSettings,
+  uploadLogo
 };
