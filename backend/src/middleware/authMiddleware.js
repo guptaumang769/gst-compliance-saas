@@ -105,6 +105,49 @@ function authorizeRole(...allowedRoles) {
 }
 
 /**
+ * Require one of the given roles (case-insensitive).
+ *
+ * Backward/forward compatible: a token without a role (or with an unknown
+ * role) is treated as OWNER, so existing single-user tokens keep full access.
+ *
+ * Usage:
+ *   router.post('/', authenticateToken, requireRole('OWNER', 'ACCOUNTANT'), controller.method);
+ */
+function requireRole(...allowedRoles) {
+  const allowed = allowedRoles.map((r) => String(r).toUpperCase());
+
+  return (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          error: 'Not authenticated'
+        });
+      }
+
+      // Default to OWNER when role is absent (legacy tokens / single-user setups)
+      const role = String(req.user.role || 'OWNER').toUpperCase();
+
+      if (!allowed.includes(role)) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access forbidden',
+          message: `This action requires one of the following roles: ${allowed.join(', ')}`
+        });
+      }
+
+      next();
+    } catch (error) {
+      console.error('Role check error:', error);
+      return res.status(403).json({
+        success: false,
+        error: 'Authorization failed'
+      });
+    }
+  };
+}
+
+/**
  * Optional authentication
  * Doesn't fail if token is missing, but validates if provided
  * 
@@ -138,5 +181,6 @@ function optionalAuth(req, res, next) {
 module.exports = {
   authenticateToken,
   authorizeRole,
+  requireRole,
   optionalAuth
 };
