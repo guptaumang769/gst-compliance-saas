@@ -5,6 +5,7 @@
  */
 
 const customerService = require('../services/customerService');
+const auditService = require('../services/auditService');
 
 /**
  * POST /api/customers
@@ -31,7 +32,16 @@ async function createCustomer(req, res) {
     
     // Create customer
     const result = await customerService.createCustomer(business.id, req.body);
-    
+
+    auditService.logAudit({
+      businessId: business.id,
+      userId: req.user.userId,
+      action: 'create',
+      entityType: 'customer',
+      entityId: result.customer && result.customer.id,
+      details: { customerName: result.customer && result.customer.customerName }
+    }).catch(() => {});
+
     return res.status(201).json(result);
     
   } catch (error) {
@@ -162,7 +172,15 @@ async function updateCustomer(req, res) {
     }
     
     const result = await customerService.updateCustomer(customerId, business.id, req.body);
-    
+
+    auditService.logAudit({
+      businessId: business.id,
+      userId: req.user.userId,
+      action: 'update',
+      entityType: 'customer',
+      entityId: customerId
+    }).catch(() => {});
+
     return res.status(200).json(result);
     
   } catch (error) {
@@ -212,7 +230,15 @@ async function deleteCustomer(req, res) {
     }
     
     const result = await customerService.deleteCustomer(customerId, business.id);
-    
+
+    auditService.logAudit({
+      businessId: business.id,
+      userId: req.user.userId,
+      action: 'delete',
+      entityType: 'customer',
+      entityId: customerId
+    }).catch(() => {});
+
     return res.status(200).json(result);
     
   } catch (error) {

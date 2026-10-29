@@ -7,10 +7,22 @@
 const express = require('express');
 const router = express.Router();
 const customerController = require('../controllers/customerController');
-const { authenticateToken } = require('../middleware/authMiddleware');
+const importController = require('../controllers/importController');
+const { authenticateToken, requireRole } = require('../middleware/authMiddleware');
+const { uploadCsv, handleUpload } = require('../middleware/uploadMiddleware');
 
 // All customer routes require authentication
 router.use(authenticateToken);
+
+const canWrite = requireRole('OWNER', 'ACCOUNTANT');
+
+/**
+ * Bulk CSV import (place before /:id to avoid conflicts)
+ */
+// GET /api/customers/import/template - download CSV template
+router.get('/import/template', importController.customerTemplate);
+// POST /api/customers/import - bulk import from CSV (field 'file')
+router.post('/import', canWrite, handleUpload(uploadCsv), importController.importCustomers);
 
 /**
  * Customer CRUD operations
