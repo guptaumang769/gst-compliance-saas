@@ -7,6 +7,7 @@
 const invoiceService = require('../services/invoiceService');
 const pdfService = require('../services/pdfService');
 const emailService = require('../services/emailService');
+const auditService = require('../services/auditService');
 
 /**
  * POST /api/invoices
@@ -41,7 +42,16 @@ async function createInvoice(req, res) {
     
     // Create invoice
     const result = await invoiceService.createInvoice(business.id, req.body);
-    
+
+    auditService.logAudit({
+      businessId: business.id,
+      userId: req.user.userId,
+      action: 'create',
+      entityType: 'invoice',
+      entityId: result.invoice && result.invoice.id,
+      details: { invoiceNumber: result.invoice && result.invoice.invoiceNumber }
+    }).catch(() => {});
+
     return res.status(201).json(result);
     
   } catch (error) {
@@ -176,7 +186,15 @@ async function updateInvoice(req, res) {
     }
     
     const result = await invoiceService.updateInvoice(invoiceId, business.id, req.body);
-    
+
+    auditService.logAudit({
+      businessId: business.id,
+      userId: req.user.userId,
+      action: 'update',
+      entityType: 'invoice',
+      entityId: invoiceId
+    }).catch(() => {});
+
     return res.status(200).json(result);
     
   } catch (error) {
@@ -226,7 +244,15 @@ async function deleteInvoice(req, res) {
     }
     
     const result = await invoiceService.deleteInvoice(invoiceId, business.id);
-    
+
+    auditService.logAudit({
+      businessId: business.id,
+      userId: req.user.userId,
+      action: 'delete',
+      entityType: 'invoice',
+      entityId: invoiceId
+    }).catch(() => {});
+
     return res.status(200).json(result);
     
   } catch (error) {
