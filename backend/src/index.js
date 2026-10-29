@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -9,13 +10,25 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:5173', 'http://localhost:3000'],
+  origin: function (origin, callback) {
+    const allowed = process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+      : ['http://localhost:5173', 'http://localhost:3000'];
+    if (!origin || allowed.includes(origin) || allowed.includes('*')) {
+      callback(null, true);
+    } else if (origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve locally-stored uploads (e.g. business logos) statically
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Request logging middleware (development)
 if (process.env.NODE_ENV === 'development') {
@@ -57,7 +70,22 @@ app.get('/api', (req, res) => {
       gstr2Reconciliation: '/api/gstr2-reconciliation ✅ NEW',
       subscriptions: '/api/subscriptions ✅',
       payments: '/api/payments ✅',
-      webhooks: '/api/webhooks ✅'
+      webhooks: '/api/webhooks ✅',
+      reports: '/api/reports ✅ NEW',
+      products: '/api/products ✅ NEW',
+      team: '/api/team ✅ NEW',
+      auditLogs: '/api/audit-logs ✅ NEW',
+      ewayBills: '/api/eway-bills ✅ NEW',
+      eInvoice: '/api/einvoice ✅ NEW',
+      tdsTcs: '/api/tds-tcs ✅ NEW',
+      inventory: '/api/inventory ✅ NEW',
+      bank: '/api/bank ✅ NEW',
+      financials: '/api/financials ✅ NEW',
+      insights: '/api/insights ✅ NEW',
+      admin: '/api/admin ✅ NEW',
+      chatbot: '/api/chatbot ✅ NEW',
+      whatsapp: '/api/whatsapp ✅ NEW',
+      gstFiling: '/api/gst-filing ✅ NEW'
     },
     documentation: 'See /docs folder in repository'
   });
@@ -95,6 +123,31 @@ app.use('/api/gstr2-reconciliation', require('./routes/gstr2ReconciliationRoutes
 app.use('/api/subscriptions', require('./routes/subscriptionRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));
 app.use('/api/webhooks', require('./routes/webhookRoutes'));
+
+// ============================================
+// API Routes - Phase 2: Reports, Product Master, Team & Audit
+// ============================================
+app.use('/api/reports', require('./routes/reportRoutes'));
+app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/team', require('./routes/teamRoutes'));
+app.use('/api/audit-logs', require('./routes/auditLogRoutes'));
+
+// ============================================
+// API Routes - Phase 3: E-Way Bill, E-Invoice, TDS/TCS, Inventory,
+// Bank Reconciliation, Financials, Insights, Admin, Chatbot, WhatsApp,
+// GST Filing stub
+// ============================================
+app.use('/api/eway-bills', require('./routes/ewayBillRoutes'));
+app.use('/api/einvoice', require('./routes/eInvoiceRoutes'));
+app.use('/api/tds-tcs', require('./routes/tdsTcsRoutes'));
+app.use('/api/inventory', require('./routes/inventoryRoutes'));
+app.use('/api/bank', require('./routes/bankRoutes'));
+app.use('/api/financials', require('./routes/financialsRoutes'));
+app.use('/api/insights', require('./routes/insightsRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/chatbot', require('./routes/chatbotRoutes'));
+app.use('/api/whatsapp', require('./routes/whatsappRoutes'));
+app.use('/api/gst-filing', require('./routes/gstFilingRoutes'));
 
 // 404 handler
 app.use('*', (req, res) => {
