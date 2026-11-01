@@ -16,6 +16,41 @@ const fs = require('fs');
 const path = require('path');
 const prisma = require('../config/database');
 
+const UPLOADS_DIR = path.join(__dirname, '../../uploads');
+
+/**
+ * Resolve a business logoUrl to a local file path that PDFKit can embed.
+ * Returns null when the logo cannot be resolved locally (e.g. remote S3 URL),
+ * so the caller can gracefully skip rendering it.
+ */
+function resolveLocalLogoPath(logoUrl) {
+  try {
+    if (!logoUrl || typeof logoUrl !== 'string') return null;
+
+    // Local S3-fallback style: file:///abs/path
+    if (logoUrl.startsWith('file://')) {
+      const p = logoUrl.replace('file://', '');
+      return fs.existsSync(p) ? p : null;
+    }
+
+    // Locally-served upload (absolute or relative URL containing /uploads/)
+    const uploadsIdx = logoUrl.indexOf('/uploads/');
+    if (uploadsIdx !== -1) {
+      const relative = logoUrl.slice(uploadsIdx + '/uploads/'.length);
+      const p = path.join(UPLOADS_DIR, relative);
+      return fs.existsSync(p) ? p : null;
+    }
+
+    // Plain filesystem path
+    if (fs.existsSync(logoUrl)) return logoUrl;
+
+    return null;
+  } catch (err) {
+    console.error('[PDF] Failed to resolve logo path:', err.message);
+    return null;
+  }
+}
+
 // PDF storage directory
 const PDF_DIR = process.env.PDF_STORAGE_PATH || path.join(__dirname, '../../storage/invoices');
 
@@ -97,6 +132,21 @@ async function generatePDFContent(doc, invoice) {
   const successColor = '#16a34a'; // Green
 
   let yPosition = 50;
+
+  // ==========================================
+  // BUSINESS LOGO (top-left, if available)
+  // ==========================================
+  if (business && business.logoUrl) {
+    const logoPath = resolveLocalLogoPath(business.logoUrl);
+    if (logoPath) {
+      try {
+        doc.image(logoPath, 50, 45, { fit: [110, 45], align: 'left', valign: 'top' });
+      } catch (logoErr) {
+        // Never let a bad logo break PDF generation
+        console.error('[PDF] Failed to render logo:', logoErr.message);
+      }
+    }
+  }
 
   // ==========================================
   // HEADER: Company Details
@@ -470,8 +520,10 @@ async function generatePDFContent(doc, invoice) {
 
   // ==========================================
   // TERMS & CONDITIONS
+  // Prefer the invoice-specific terms; fall back to the business default.
   // ==========================================
-  if (invoice.termsAndConditions) {
+  const termsText = invoice.termsAndConditions || (business && business.defaultTerms) || null;
+  if (termsText) {
     doc.fontSize(10)
        .fillColor(primaryColor)
        .text('Terms & Conditions:', 50, yPosition);
@@ -480,7 +532,7 @@ async function generatePDFContent(doc, invoice) {
 
     doc.fontSize(8)
        .fillColor(secondaryColor)
-       .text(invoice.termsAndConditions, 50, yPosition, { width: 495 });
+       .text(termsText, 50, yPosition, { width: 495 });
 
     yPosition += 40;
   }
