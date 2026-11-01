@@ -364,10 +364,52 @@ async function verifyEmailConfig() {
   }
 }
 
+/**
+ * Send a team invitation email with temporary login credentials.
+ * Best-effort: relies on sendMail's built-in fallbacks.
+ */
+async function sendTeamInviteEmail(toEmail, { name, tempPassword, businessName, role } = {}) {
+  const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`;
+
+  return sendMail({
+    to: toEmail,
+    subject: `You've been invited to ${businessName || 'a business'} on GST Compliance SaaS`,
+    _devUrl: loginUrl,
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="margin: 0;">You've been invited</h1>
+  </div>
+  <div style="background-color: #f8f9fa; padding: 30px; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 8px 8px;">
+    <p>Hello ${name || ''},</p>
+    <p>You have been added as a <strong>${role || 'team member'}</strong> to <strong>${businessName || 'a business'}</strong> on GST Compliance SaaS.</p>
+    <p>Use the following temporary credentials to log in:</p>
+    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #6366F1;">
+      <p style="margin: 4px 0;"><strong>Email:</strong> ${toEmail}</p>
+      <p style="margin: 4px 0;"><strong>Temporary Password:</strong> ${tempPassword}</p>
+    </div>
+    <p style="font-size: 13px; color: #dc2626;">For security, please change this password after your first login.</p>
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${loginUrl}" style="display: inline-block; background-color: #6366F1; color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; font-weight: bold;">Log In</a>
+    </div>
+  </div>
+  <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #6c757d;">
+    <p>Powered by GST Compliance SaaS</p>
+  </div>
+</body>
+</html>`.trim()
+  });
+}
+
 module.exports = {
   sendInvoiceEmail,
   sendTestEmail,
   verifyEmailConfig,
   sendVerificationEmail,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendTeamInviteEmail,
+  isSmtpConfigured
 };
