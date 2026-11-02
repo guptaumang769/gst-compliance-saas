@@ -23,10 +23,15 @@ import {
   Save,
   Person,
   AccountBalance,
+  ReceiptLong,
+  CloudUpload,
+  Image as ImageIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
+import { Avatar, InputAdornment } from '@mui/material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { authAPI } from '../services/api';
+import { authAPI, businessAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import { INDIAN_STATES, BUSINESS_TYPES } from '../utils/constants';
 import { useAuth } from '../context/AuthContext';
@@ -68,7 +73,7 @@ export default function SettingsPage() {
   const [currentTab, setCurrentTab] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [notificationSettings, setNotificationSettings] = useState({
     emailNotifications: true,
     invoiceReminders: true,
@@ -76,6 +81,8 @@ export default function SettingsPage() {
     paymentAlerts: true,
   });
   const [savingNotifications, setSavingNotifications] = useState(false);
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const businessFormik = useFormik({
     initialValues: {
@@ -180,6 +187,81 @@ export default function SettingsPage() {
     },
   });
 
+  const invoiceFormik = useFormik({
+    initialValues: {
+      invoicePrefix: '',
+      invoiceNumberFormat: '',
+      invoiceNextNumber: 1,
+      defaultTerms: '',
+    },
+    enableReinitialize: true,
+    onSubmit: async (values, { setSubmitting }) => {
+      try {
+        await authAPI.updateSettings({
+          invoicePrefix: values.invoicePrefix,
+          invoiceNumberFormat: values.invoiceNumberFormat,
+          invoiceNextNumber: parseInt(values.invoiceNextNumber, 10) || 1,
+          defaultTerms: values.defaultTerms,
+        });
+        handleSuccess('Invoice settings saved');
+      } catch (err) {
+        handleApiError(err, 'Failed to save invoice settings');
+      } finally {
+        setSubmitting(false);
+      }
+    },
+  });
+
+  const handleLogoSelect = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      handleApiError({ message: 'Please select a valid image file' });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      handleApiError({ message: 'Logo must be smaller than 2 MB' });
+      return;
+    }
+    // Instant local preview
+    const localPreview = URL.createObjectURL(file);
+    setLogoPreview(localPreview);
+    try {
+      setUploadingLogo(true);
+      const response = await businessAPI.uploadLogo(file);
+      const url = response.data?.logoUrl || response.data?.url || response.data?.logo;
+      if (url) {
+        setLogoPreview(url);
+        updateUser({ logoUrl: url });
+      }
+      handleSuccess('Logo uploaded successfully');
+    } catch (err) {
+      handleApiError(err, 'Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+      event.target.value = '';
+    }
+  };
+
+  // Preview the invoice number that would be generated
+  const previewInvoiceNumber = () => {
+    const prefix = invoiceFormik.values.invoicePrefix || '';
+    const next = String(invoiceFormik.values.invoiceNextNumber || 1);
+    const format = invoiceFormik.values.invoiceNumberFormat;
+    if (format) {
+      const now = new Date();
+      return format
+        .replace(/\{PREFIX\}/gi, prefix)
+        .replace(/\{YYYY\}/g, now.getFullYear())
+        .replace(/\{YY\}/g, String(now.getFullYear()).slice(-2))
+        .replace(/\{MM\}/g, String(now.getMonth() + 1).padStart(2, '0'))
+        .replace(/\{FY\}/gi, `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(-2)}`)
+        .replace(/\{SEQ(\d*)\}/gi, (m, len) => next.padStart(parseInt(len, 10) || 4, '0'))
+        .replace(/\{NUMBER\}/gi, next);
+    }
+    return `${prefix}${next.padStart(4, '0')}`;
+  };
+
   // Fetch profile data on mount
   useEffect(() => {
     fetchProfileData();
@@ -221,6 +303,19 @@ export default function SettingsPage() {
         bankBranch: business.bankBranch || '',
         filingFrequency: business.filingFrequency || 'monthly',
       });
+
+      // Populate invoice numbering form
+      invoiceFormik.setValues({
+        invoicePrefix: business.invoicePrefix || '',
+        invoiceNumberFormat: business.invoiceNumberFormat || '',
+        invoiceNextNumber: business.invoiceNextNumber || 1,
+        defaultTerms: business.defaultTerms || '',
+      });
+
+      // Existing business logo (if any)
+      if (business.logoUrl || business.logo) {
+        setLogoPreview(business.logoUrl || business.logo);
+      }
     } catch (err) {
       const msg = handleApiError(err, 'Failed to load profile data');
       setError(msg);
@@ -298,6 +393,7 @@ export default function SettingsPage() {
           <Tab icon={<Business />} label="Business Profile" iconPosition="start" />
           <Tab icon={<Person />} label="User Profile" iconPosition="start" />
           <Tab icon={<AccountBalance />} label="Bank & Filing" iconPosition="start" />
+          <Tab icon={<ReceiptLong />} label="Branding & Invoicing" iconPosition="start" />
           <Tab icon={<Security />} label="Change Password" iconPosition="start" />
           <Tab icon={<Notifications />} label="Notifications" iconPosition="start" />
         </Tabs>
@@ -656,8 +752,193 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* Change Password Tab */}
+      {/* Branding & Invoicing Tab */}
       {currentTab === 3 && (
+        <Grid container spacing={3}>
+          {/* Business Logo */}
+          <Grid item xs={12} md={5}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Business Logo
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Appears on your invoice PDFs. PNG or JPG, up to 2 MB.
+                </Typography>
+                <Divider sx={{ mb: 3 }} />
+
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <Avatar
+                    variant="rounded"
+                    src={logoPreview || undefined}
+                    sx={{
+                      width: 140,
+                      height: 140,
+                      bgcolor: 'action.hover',
+                      color: 'text.disabled',
+                      border: '1px dashed',
+                      borderColor: 'divider',
+                    }}
+                  >
+                    {!logoPreview && <ImageIcon sx={{ fontSize: 48 }} />}
+                  </Avatar>
+
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      component="label"
+                      variant="contained"
+                      startIcon={<CloudUpload />}
+                      disabled={uploadingLogo}
+                      className="gradient-button-primary"
+                    >
+                      {uploadingLogo ? 'Uploading...' : logoPreview ? 'Replace Logo' : 'Upload Logo'}
+                      <input hidden type="file" accept="image/*" onChange={handleLogoSelect} />
+                    </Button>
+                    {logoPreview && (
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        startIcon={<DeleteIcon />}
+                        disabled={uploadingLogo}
+                        onClick={() => setLogoPreview(null)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Invoice Numbering */}
+          <Grid item xs={12} md={7}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <form onSubmit={invoiceFormik.handleSubmit}>
+                  <Typography variant="h6" gutterBottom>
+                    Invoice Numbering
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Control how invoice numbers are generated for new invoices.
+                  </Typography>
+                  <Divider sx={{ mb: 3 }} />
+
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        id="invoicePrefix"
+                        name="invoicePrefix"
+                        label="Invoice Prefix"
+                        placeholder="INV-"
+                        value={invoiceFormik.values.invoicePrefix}
+                        onChange={invoiceFormik.handleChange}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        id="invoiceNextNumber"
+                        name="invoiceNextNumber"
+                        label="Next Number"
+                        type="number"
+                        value={invoiceFormik.values.invoiceNextNumber}
+                        onChange={invoiceFormik.handleChange}
+                        inputProps={{ min: 1 }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        id="invoiceNumberFormat"
+                        name="invoiceNumberFormat"
+                        label="Number Format (optional)"
+                        placeholder="{PREFIX}{FY}/{SEQ4}"
+                        value={invoiceFormik.values.invoiceNumberFormat}
+                        onChange={invoiceFormik.handleChange}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <ReceiptLong fontSize="small" />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Alert severity="info" sx={{ mb: 1 }}>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          Available tokens:
+                        </Typography>
+                        <Typography variant="caption" component="div" color="text.secondary">
+                          <code>{'{PREFIX}'}</code> prefix &nbsp;•&nbsp;
+                          <code>{'{FY}'}</code> financial year &nbsp;•&nbsp;
+                          <code>{'{YYYY}'}</code> / <code>{'{YY}'}</code> year &nbsp;•&nbsp;
+                          <code>{'{MM}'}</code> month &nbsp;•&nbsp;
+                          <code>{'{SEQ4}'}</code> zero-padded sequence &nbsp;•&nbsp;
+                          <code>{'{NUMBER}'}</code> raw number
+                        </Typography>
+                      </Alert>
+                      <Box
+                        sx={{
+                          p: 1.5,
+                          borderRadius: 2,
+                          bgcolor: 'action.hover',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                        }}
+                      >
+                        <Typography variant="body2" color="text.secondary">
+                          Preview:
+                        </Typography>
+                        <Typography variant="body2" fontFamily="monospace" fontWeight={700}>
+                          {previewInvoiceNumber()}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Divider sx={{ mb: 2 }} />
+                      <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                        Default Terms &amp; Conditions
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                        These terms are pre-filled on new invoices. You can still override them per invoice.
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        id="defaultTerms"
+                        name="defaultTerms"
+                        label="Default Terms & Conditions"
+                        placeholder="e.g. Payment due within 30 days. Goods once sold will not be taken back."
+                        multiline
+                        rows={4}
+                        value={invoiceFormik.values.defaultTerms}
+                        onChange={invoiceFormik.handleChange}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        startIcon={<Save />}
+                        disabled={invoiceFormik.isSubmitting}
+                        className="gradient-button-primary"
+                      >
+                        {invoiceFormik.isSubmitting ? 'Saving...' : 'Save Invoice Settings'}
+                      </Button>
+                    </Grid>
+                  </Grid>
+                </form>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Change Password Tab */}
+      {currentTab === 4 && (
         <Card>
           <CardContent>
             <form onSubmit={passwordFormik.handleSubmit}>
@@ -740,7 +1021,7 @@ export default function SettingsPage() {
       )}
 
       {/* Notifications Tab */}
-      {currentTab === 4 && (
+      {currentTab === 5 && (
         <Card>
           <CardContent>
             <Grid container spacing={3}>
