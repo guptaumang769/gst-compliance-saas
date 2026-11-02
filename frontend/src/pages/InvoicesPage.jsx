@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -48,10 +49,13 @@ import {
   InfoOutlined,
   Gavel,
   WarningAmber,
+  QrCode2,
+  WhatsApp,
+  LocalShipping,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { invoiceAPI, customerAPI } from '../services/api';
+import { invoiceAPI, customerAPI, productAPI, authAPI, eInvoiceAPI, whatsappAPI, ewayBillAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import { INVOICE_STATUS_COLORS } from '../utils/constants';
 import { formatCurrency, formatDate } from '../utils/formatters';
@@ -134,8 +138,10 @@ const getSupplyType = (invoice) => {
 };
 
 export default function InvoicesPage() {
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
@@ -150,11 +156,59 @@ export default function InvoicesPage() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(null); // track which invoice PDF is loading
   const [formError, setFormError] = useState(''); // general form validation error
+  const [defaultTerms, setDefaultTerms] = useState(''); // business default T&C
+  const [actionLoading, setActionLoading] = useState(null); // `${type}-${id}` currently running row action
+  const [eInvoiceDialog, setEInvoiceDialog] = useState(null); // { invoice, data }
+  const [cancellingEInvoice, setCancellingEInvoice] = useState(false);
 
   useEffect(() => {
     fetchInvoices();
     fetchCustomers();
   }, [page, rowsPerPage, searchTerm, filterStatus]);
+
+  useEffect(() => {
+    fetchProducts();
+    fetchBusinessDefaults();
+  }, []);
+
+  const fetchBusinessDefaults = async () => {
+    try {
+      const response = await authAPI.getProfile();
+      const userData = response.data?.user || response.data;
+      const business = userData?.businesses?.[0] || {};
+      setDefaultTerms(business.defaultTerms || '');
+    } catch (err) {
+      // Defaults are optional; fail silently.
+      console.error('Failed to load business defaults:', err);
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const response = await productAPI.getAll({ limit: 1000 });
+      setProducts(response.data.products || []);
+    } catch (err) {
+      // Product catalog is optional for invoicing; fail silently.
+      console.error('Failed to load products:', err);
+    }
+  };
+
+  const addFromProduct = (product) => {
+    if (!product) return;
+    const newItem = {
+      description: product.name || '',
+      hsnCode: product.hsnSac || product.hsnCode || '',
+      quantity: 1,
+      unitPrice: parseFloat(product.sellingPrice) || 0,
+      gstRate: parseFloat(product.gstRate) || 18,
+      cessRate: parseFloat(product.cess) || 0,
+      discount: 0,
+    };
+    const items = formik.values.items || [];
+    const onlyEmpty =
+      items.length === 1 && !items[0].description?.trim() && !items[0].hsnCode?.trim();
+    formik.setFieldValue('items', onlyEmpty ? [newItem] : [...items, newItem]);
+  };
 
   const fetchInvoices = async () => {
     try {
@@ -217,6 +271,7 @@ export default function InvoicesPage() {
       invoiceDate: new Date().toISOString().split('T')[0],
       dueDate: '',
       notes: '',
+      termsAndConditions: '',
       reverseCharge: false,
       items: [
         {
@@ -293,6 +348,7 @@ export default function InvoicesPage() {
         invoiceDate: invoice.invoiceDate?.split('T')[0] || new Date().toISOString().split('T')[0],
         dueDate: invoice.dueDate?.split('T')[0] || '',
         notes: invoice.notes || '',
+        termsAndConditions: invoice.termsAndConditions || defaultTerms || '',
         reverseCharge: invoice.reverseCharge || false,
         items: (invoice.items || []).map(item => ({
           description: item.itemName || item.description || '',
@@ -308,6 +364,10 @@ export default function InvoicesPage() {
       setEditingInvoice(null);
       setSelectedCustomer(null);
       formik.resetForm();
+      // Pre-fill terms & conditions from the business default for new invoices.
+      if (defaultTerms) {
+        formik.setFieldValue('termsAndConditions', defaultTerms);
+      }
     }
     setOpenDialog(true);
   };
@@ -390,6 +450,69 @@ export default function InvoicesPage() {
       fetchInvoices();
     } catch (err) {
       handleApiError(err, 'Failed to update filing status');
+    }
+  };
+
+  const handleGenerateEInvoice = async (e, invoice) => {
+    e.stopPropagation();
+    try {
+      setActionLoading(`einvoice-${invoice.id}`);
+      const response = await eInvoiceAPI.generate(invoice.id);
+      const data = response.data?.eInvoice || response.data || {};
+      setEInvoiceDialog({ invoice, data });
+      handleSuccess('E-Invoice (IRN) generated successfully');
+      fetchInvoices();
+    } catch (err) {
+      handleApiError(err, 'Failed to generate e-invoice');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCancelEInvoice = async () => {
+    if (!eInvoiceDialog?.invoice) return;
+    try {
+      setCancellingEInvoice(true);
+      await eInvoiceAPI.cancel(eInvoiceDialog.invoice.id, { reason: 'Cancelled by user' });
+      handleSuccess('E-Invoice cancelled');
+      setEInvoiceDialog(null);
+      fetchInvoices();
+    } catch (err) {
+      handleApiError(err, 'Failed to cancel e-invoice');
+    } finally {
+      setCancellingEInvoice(false);
+    }
+  };
+
+  const handleWhatsApp = async (e, invoice) => {
+    e.stopPropagation();
+    try {
+      setActionLoading(`whatsapp-${invoice.id}`);
+      const response = await whatsappAPI.getInvoiceLink(invoice.id);
+      const url = response.data?.url;
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        handleApiError({ message: 'No WhatsApp link was returned' });
+      }
+    } catch (err) {
+      handleApiError(err, 'Failed to get WhatsApp link');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCreateEwayBill = async (e, invoice) => {
+    e.stopPropagation();
+    try {
+      setActionLoading(`ewb-${invoice.id}`);
+      await ewayBillAPI.fromInvoice(invoice.id);
+      handleSuccess('E-Way Bill draft created from invoice');
+      navigate('/eway-bills');
+    } catch (err) {
+      handleApiError(err, 'Failed to create e-way bill from invoice');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -658,6 +781,36 @@ export default function InvoicesPage() {
                                   <Gavel fontSize="small" />
                                 </IconButton>
                               </Tooltip>
+                              <Tooltip title="Generate E-Invoice (IRN)">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => handleGenerateEInvoice(e, invoice)}
+                                  color="info"
+                                  disabled={actionLoading === `einvoice-${invoice.id}`}
+                                >
+                                  <QrCode2 fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Share via WhatsApp">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => handleWhatsApp(e, invoice)}
+                                  sx={{ color: '#25D366' }}
+                                  disabled={actionLoading === `whatsapp-${invoice.id}`}
+                                >
+                                  <WhatsApp fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Create E-Way Bill">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => handleCreateEwayBill(e, invoice)}
+                                  color="secondary"
+                                  disabled={actionLoading === `ewb-${invoice.id}`}
+                                >
+                                  <LocalShipping fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
                               {!invoice.filedInGstr1 && (
                                 <>
                                   <Tooltip title="Edit">
@@ -853,6 +1006,51 @@ export default function InvoicesPage() {
                     Add Item
                   </Button>
                 </Box>
+
+                {/* Quick add from product catalog (auto-fills HSN + GST rate) */}
+                {products.length > 0 && (
+                  <Autocomplete
+                    sx={{ mb: 2 }}
+                    options={products}
+                    value={null}
+                    blurOnSelect
+                    clearOnBlur
+                    onChange={(e, product) => addFromProduct(product)}
+                    getOptionLabel={(option) => option.name || ''}
+                    renderOption={(props, option) => (
+                      <li {...props} key={option.id}>
+                        <Box>
+                          <Typography variant="body2" fontWeight={600}>
+                            {option.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {(option.hsnSac || option.hsnCode) ? `HSN/SAC ${option.hsnSac || option.hsnCode}` : 'No HSN'} ·{' '}
+                            {option.gstRate ?? 0}% GST · {formatCurrency(option.sellingPrice || 0)}
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Quick add item from catalog"
+                        placeholder="Search saved products / services..."
+                        size="small"
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <>
+                              <InputAdornment position="start">
+                                <Search fontSize="small" />
+                              </InputAdornment>
+                              {params.InputProps.startAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                )}
 
                 {/* Show form-level validation error */}
                 {formError && (
@@ -1062,6 +1260,18 @@ export default function InvoicesPage() {
                   rows={3}
                   value={formik.values.notes}
                   onChange={formik.handleChange}
+                  sx={{ mb: 2 }}
+                />
+                <TextField
+                  fullWidth
+                  id="termsAndConditions"
+                  name="termsAndConditions"
+                  label="Terms & Conditions"
+                  placeholder="Pre-filled from your business defaults (Settings → Branding & Invoicing)"
+                  multiline
+                  rows={3}
+                  value={formik.values.termsAndConditions}
+                  onChange={formik.handleChange}
                 />
               </Grid>
 
@@ -1145,6 +1355,69 @@ export default function InvoicesPage() {
           <Button onClick={handleCloseDeleteDialog}>Cancel</Button>
           <Button onClick={handleDeleteInvoice} color="error" variant="contained">
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* E-Invoice (IRN) Dialog */}
+      <Dialog open={Boolean(eInvoiceDialog)} onClose={() => setEInvoiceDialog(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <QrCode2 color="info" />
+            E-Invoice Details
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          {eInvoiceDialog?.data ? (
+            <Box>
+              <Box sx={{ textAlign: 'center', mb: 2 }}>
+                {eInvoiceDialog.data.qrImageDataUrl ? (
+                  <Box
+                    component="img"
+                    src={eInvoiceDialog.data.qrImageDataUrl}
+                    alt="E-Invoice QR code"
+                    sx={{ width: 180, height: 180, objectFit: 'contain', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1 }}
+                  />
+                ) : (
+                  <Box sx={{ py: 3 }}>
+                    <QrCode2 sx={{ fontSize: 64, color: 'text.disabled' }} />
+                    <Typography variant="caption" display="block" color="text.secondary">
+                      QR code not available
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+              <Divider sx={{ mb: 2 }} />
+              {[
+                ['IRN', eInvoiceDialog.data.irn],
+                ['Ack No.', eInvoiceDialog.data.ackNo],
+                ['Ack Date', eInvoiceDialog.data.ackDate ? formatDate(eInvoiceDialog.data.ackDate, 'dd MMM yyyy, HH:mm') : null],
+                ['Status', eInvoiceDialog.data.status],
+              ].map(([label, value]) => (
+                <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mb: 1 }}>
+                  <Typography variant="body2" color="text.secondary">{label}</Typography>
+                  <Typography variant="body2" fontWeight={600} sx={{ wordBreak: 'break-all', textAlign: 'right' }}>
+                    {value || '-'}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No e-invoice data available.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            color="error"
+            onClick={handleCancelEInvoice}
+            disabled={cancellingEInvoice}
+          >
+            {cancellingEInvoice ? 'Cancelling...' : 'Cancel E-Invoice'}
+          </Button>
+          <Button variant="contained" onClick={() => setEInvoiceDialog(null)} className="gradient-button-primary">
+            Done
           </Button>
         </DialogActions>
       </Dialog>

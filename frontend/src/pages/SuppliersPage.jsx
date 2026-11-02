@@ -32,16 +32,17 @@ import {
   Search,
   Edit,
   Delete,
-  FileDownload,
   Business,
   Store,
   InfoOutlined,
+  UploadFile,
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { supplierAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import { INDIAN_STATES, VALIDATION_MESSAGES, getStateFromGSTIN } from '../utils/constants';
+import { ImportDialog } from '../components/common';
 
 // Validation schema
 const supplierSchema = Yup.object({
@@ -77,6 +78,7 @@ export default function SuppliersPage() {
   const [deletingSupplier, setDeletingSupplier] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
   const [sameAsBilling, setSameAsBilling] = useState(true);
+  const [openImport, setOpenImport] = useState(false);
 
   useEffect(() => {
     fetchSuppliers();
@@ -221,15 +223,25 @@ export default function SuppliersPage() {
             Manage your supplier database
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => handleOpenDialog()}
-          className="gradient-button-primary"
-          size="small"
-        >
-          Add Supplier
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Button
+            variant="outlined"
+            startIcon={<UploadFile />}
+            onClick={() => setOpenImport(true)}
+            size="small"
+          >
+            Import CSV
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => handleOpenDialog()}
+            className="gradient-button-primary"
+            size="small"
+          >
+            Add Supplier
+          </Button>
+        </Box>
       </Box>
 
       {/* Search Bar */}
@@ -609,6 +621,20 @@ export default function SuppliersPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Bulk import */}
+      <ImportDialog
+        open={openImport}
+        onClose={() => setOpenImport(false)}
+        title="Import Suppliers"
+        importFn={supplierAPI.import}
+        templateFn={supplierAPI.importTemplate}
+        templateName="suppliers-template.csv"
+        onImported={() => {
+          setPage(0);
+          fetchSuppliers();
+        }}
+      />
     </Box>
   );
 }

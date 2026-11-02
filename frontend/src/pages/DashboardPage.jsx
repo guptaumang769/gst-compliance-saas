@@ -15,28 +15,26 @@ import {
   Chip,
   IconButton,
   Button,
-  Avatar,
   LinearProgress,
   Alert,
   TextField,
   MenuItem,
 } from '@mui/material';
 import {
-  TrendingUp,
-  TrendingDown,
   Receipt,
   People,
   ShoppingCart,
   AccountBalance,
-  MoreVert,
   Add,
   ArrowForward,
+  Lightbulb,
 } from '@mui/icons-material';
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -45,66 +43,28 @@ import {
   Legend,
 } from 'recharts';
 import { useAuth } from '../context/AuthContext';
-import { dashboardAPI, invoiceAPI } from '../services/api';
+import { dashboardAPI, invoiceAPI, insightsAPI } from '../services/api';
 import { formatCurrency, formatDate, calculateTrend } from '../utils/formatters';
 import { handleApiError } from '../utils/errorHandler';
-import { MESSAGES, INVOICE_STATUS_COLORS, STAT_COLORS } from '../utils/constants';
+import { MESSAGES, INVOICE_STATUS_COLORS, STAT_COLORS, CHART_COLORS } from '../utils/constants';
+import { StatCard, EmptyState } from '../components/common';
 import '../styles/dashboard.css';
 
-// Stat Card Component
-function StatCard({ title, value, change, icon, color, trend, loading }) {
-  const isPositive = trend === 'up';
-  
-  return (
-    <Card className="stat-card">
-      <CardContent>
-        {loading ? (
-          <Box sx={{ py: 3 }}>
-            <LinearProgress />
-          </Box>
-        ) : (
-          <Box className="stat-card-content">
-            <Box className="stat-card-info">
-              <Typography className="stat-card-title">
-                {title}
-              </Typography>
-              <Typography className="stat-card-value">
-                {value}
-              </Typography>
-              {change && (
-                <Box className="stat-card-trend">
-                  {isPositive ? (
-                    <TrendingUp sx={{ fontSize: 16, color: 'success.main' }} />
-                  ) : (
-                    <TrendingDown sx={{ fontSize: 16, color: 'error.main' }} />
-                  )}
-                  <Typography
-                    variant="body2"
-                    sx={{ color: isPositive ? 'success.main' : 'error.main', fontWeight: 600 }}
-                  >
-                    {change}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {MESSAGES.VS_LAST_MONTH}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-            <Avatar
-              className="stat-card-avatar"
-              sx={{
-                background: `linear-gradient(135deg, ${color}40 0%, ${color}20 100%)`,
-                color: color,
-              }}
-            >
-              {icon}
-            </Avatar>
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+const GST_COLORS = {
+  CGST: CHART_COLORS.PRIMARY,
+  SGST: CHART_COLORS.SECONDARY,
+  IGST: CHART_COLORS.INFO,
+  CESS: CHART_COLORS.WARNING,
+};
+
+// Map an insight severity to an MUI Alert severity.
+const insightSeverity = (severity) => {
+  const s = (severity || '').toLowerCase();
+  if (s === 'critical' || s === 'high' || s === 'error') return 'error';
+  if (s === 'warning' || s === 'medium') return 'warning';
+  if (s === 'success' || s === 'positive') return 'success';
+  return 'info';
+};
 
 const monthsList = [
   { value: 1, label: 'January' }, { value: 2, label: 'February' },
@@ -123,6 +83,7 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
   const [recentInvoices, setRecentInvoices] = useState([]);
   const [revenueTrendData, setRevenueTrendData] = useState([]);
+  const [insights, setInsights] = useState([]);
 
   // Period selector
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -132,6 +93,24 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchDashboardData();
   }, [selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    // Insights power a compact widget; resilient to failure (shows nothing).
+    let active = true;
+    (async () => {
+      try {
+        const response = await insightsAPI.getAll();
+        const data = response?.data || {};
+        const list = Array.isArray(data.insights) ? data.insights : Array.isArray(data) ? data : [];
+        if (active) setInsights(list);
+      } catch {
+        if (active) setInsights([]);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const fetchDashboardData = async () => {
     try {
@@ -306,14 +285,49 @@ export default function DashboardPage() {
         Showing data for <strong>{selectedMonthName} {selectedYear}</strong>. Use the dropdowns above to view data for other months (e.g., back-dated invoices).
       </Alert>
 
+      {/* Insights widget (top 3) */}
+      {insights.length > 0 && (
+        <Card sx={{ mb: 4 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <Lightbulb color="primary" />
+              <Typography variant="h6" fontWeight={700}>
+                Insights
+              </Typography>
+              <Button
+                size="small"
+                sx={{ ml: 'auto' }}
+                endIcon={<ArrowForward />}
+                onClick={() => navigate('/insights')}
+              >
+                View all
+              </Button>
+            </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {insights.slice(0, 3).map((insight, i) => (
+                <Alert key={insight.id || i} severity={insightSeverity(insight.severity)} icon={<Lightbulb />}>
+                  <Typography variant="body2" fontWeight={600}>
+                    {insight.title || 'Insight'}
+                  </Typography>
+                  {insight.message && (
+                    <Typography variant="caption" color="text.secondary">
+                      {insight.message}
+                    </Typography>
+                  )}
+                </Alert>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title={MESSAGES.TOTAL_REVENUE}
+            label={MESSAGES.TOTAL_REVENUE}
             value={formatCurrency(summary.totalRevenue)}
-            change={revenueTrend?.value}
-            trend={revenueTrend?.trend}
+            trend={revenueTrend}
             icon={<AccountBalance />}
             color={STAT_COLORS.REVENUE}
             loading={loading}
@@ -321,10 +335,9 @@ export default function DashboardPage() {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title={MESSAGES.TOTAL_INVOICES}
+            label={MESSAGES.TOTAL_INVOICES}
             value={summary.totalInvoices || 0}
-            change={invoiceTrend?.value}
-            trend={invoiceTrend?.trend}
+            trend={invoiceTrend}
             icon={<Receipt />}
             color={STAT_COLORS.INVOICES}
             loading={loading}
@@ -332,10 +345,9 @@ export default function DashboardPage() {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title={MESSAGES.TOTAL_CUSTOMERS}
+            label={MESSAGES.TOTAL_CUSTOMERS}
             value={summary.totalCustomers || 0}
-            change={customerTrend?.value}
-            trend={customerTrend?.trend}
+            trend={customerTrend}
             icon={<People />}
             color={STAT_COLORS.CUSTOMERS}
             loading={loading}
@@ -343,10 +355,9 @@ export default function DashboardPage() {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title={MESSAGES.GST_TAX_COLLECTED}
+            label={MESSAGES.GST_TAX_COLLECTED}
             value={formatCurrency(summary.totalTax)}
-            change={taxTrend?.value}
-            trend={taxTrend?.trend}
+            trend={taxTrend}
             icon={<ShoppingCart />}
             color={STAT_COLORS.TAX}
             loading={loading}
@@ -439,15 +450,27 @@ export default function DashboardPage() {
                 {selectedMonthName} {selectedYear} tax collection
               </Typography>
               {loading ? (
-                <Box className="chart-container" sx={{ height: 250 }}>
+                <Box className="chart-container" sx={{ height: 260 }}>
                   <LinearProgress sx={{ width: '50%' }} />
                 </Box>
               ) : getGSTBreakdownData().some(item => item.amount > 0) ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={getGSTBreakdownData()}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                    <XAxis dataKey="type" stroke="#6B7280" />
-                    <YAxis stroke="#6B7280" />
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={getGSTBreakdownData()}
+                      dataKey="amount"
+                      nameKey="type"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={95}
+                      paddingAngle={3}
+                      stroke="none"
+                    >
+                      {getGSTBreakdownData().map((entry) => (
+                        <Cell key={entry.type} fill={GST_COLORS[entry.type] || '#8B5CF6'} />
+                      ))}
+                    </Pie>
                     <Tooltip
                       contentStyle={{
                         backgroundColor: 'white',
@@ -456,14 +479,16 @@ export default function DashboardPage() {
                       }}
                       formatter={(value) => formatCurrency(value)}
                     />
-                    <Bar dataKey="amount" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
-                  </BarChart>
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                  </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <Box className="chart-container" sx={{ height: 250 }}>
-                  <Typography color="text.secondary" align="center">
-                    {MESSAGES.NO_GST_DATA}
-                  </Typography>
+                <Box sx={{ height: 260 }}>
+                  <EmptyState
+                    dense
+                    title="No GST data yet"
+                    message={MESSAGES.NO_GST_DATA}
+                  />
                 </Box>
               )}
             </CardContent>
