@@ -16,5 +16,17 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        // Split large third-party libraries into their own chunks so the main
+        // app bundle stays small and vendors can be cached independently.
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'mui-vendor': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+          'charts-vendor': ['recharts'],
+          'form-vendor': ['formik', 'yup'],
+        },
+      },
+    },
   },
 });
