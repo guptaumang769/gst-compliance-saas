@@ -251,14 +251,19 @@ export default function ComplianceCalendarPage() {
                         sx={{
                           minHeight: 100,
                           p: 0.5,
-                          borderRight:
-                            (idx + 1) % 7 !== 0 ? '1px solid' : 'none',
-                          borderColor: 'divider',
-                          borderBottom: '1px solid',
-                          borderBottomColor: 'divider',
                           bgcolor: isTodayDate ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
-                          border: isTodayDate ? '2px solid' : 'none',
-                          borderColor: isTodayDate ? 'primary.main' : 'transparent',
+                          ...(isTodayDate
+                            ? {
+                                border: '2px solid',
+                                borderColor: 'primary.main',
+                              }
+                            : {
+                                borderRight:
+                                  (idx + 1) % 7 !== 0 ? '1px solid' : 'none',
+                                borderBottom: '1px solid',
+                                borderColor: 'divider',
+                                borderBottomColor: 'divider',
+                              }),
                           opacity: isDimmed ? 0.6 : 1,
                           '& .MuiChip-root': {
                             height: 18,

@@ -35,6 +35,7 @@ import {
   Person,
   Business,
   InfoOutlined,
+  UploadFile,
 } from '@mui/icons-material';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -44,6 +45,7 @@ import { customerAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import { MESSAGES, INDIAN_STATES, VALIDATION_MESSAGES, getStateFromGSTIN } from '../utils/constants';
 import { formatDate } from '../utils/formatters';
+import { ImportDialog } from '../components/common';
 
 // Validation schema - Dynamic based on customer type
 const customerSchema = Yup.object({
@@ -87,6 +89,7 @@ export default function CustomersPage() {
   const [deletingCustomer, setDeletingCustomer] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
   const [sameAsBilling, setSameAsBilling] = useState(true);
+  const [openImport, setOpenImport] = useState(false);
 
   useEffect(() => {
     fetchCustomers();
@@ -262,6 +265,14 @@ export default function CustomersPage() {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Button
+            variant="outlined"
+            startIcon={<UploadFile />}
+            onClick={() => setOpenImport(true)}
+            size="small"
+          >
+            Import CSV
+          </Button>
           <Button
             variant="outlined"
             startIcon={<FileDownload />}
@@ -713,6 +724,20 @@ export default function CustomersPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Bulk import */}
+      <ImportDialog
+        open={openImport}
+        onClose={() => setOpenImport(false)}
+        title="Import Customers"
+        importFn={customerAPI.import}
+        templateFn={customerAPI.importTemplate}
+        templateName="customers-template.csv"
+        onImported={() => {
+          setPage(0);
+          fetchCustomers();
+        }}
+      />
     </Box>
   );
 }

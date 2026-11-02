@@ -49,7 +49,7 @@ import {
 } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { purchaseAPI, supplierAPI } from '../services/api';
+import { purchaseAPI, supplierAPI, productAPI } from '../services/api';
 import { handleApiError, handleSuccess } from '../utils/errorHandler';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
@@ -102,6 +102,7 @@ const getPurchaseStatusColor = (status) => {
 export default function PurchasesPage() {
   const [purchases, setPurchases] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
@@ -120,6 +121,10 @@ export default function PurchasesPage() {
     fetchPurchases();
     fetchSuppliers();
   }, [page, rowsPerPage, searchTerm, filterStatus]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const fetchPurchases = async () => {
     try {
@@ -151,6 +156,33 @@ export default function PurchasesPage() {
     } catch (err) {
       console.error('Failed to load suppliers:', err);
     }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const response = await productAPI.getAll({ limit: 1000 });
+      setProducts(response.data.products || []);
+    } catch (err) {
+      // Product catalog is optional for purchases; fail silently.
+      console.error('Failed to load products:', err);
+    }
+  };
+
+  const addFromProduct = (product) => {
+    if (!product) return;
+    const newItem = {
+      description: product.name || '',
+      hsnCode: product.hsnSac || product.hsnCode || '',
+      quantity: 1,
+      unitPrice: parseFloat(product.sellingPrice) || 0,
+      gstRate: parseFloat(product.gstRate) || 18,
+      cessRate: parseFloat(product.cess) || 0,
+      discount: 0,
+    };
+    const items = formik.values.items || [];
+    const onlyEmpty =
+      items.length === 1 && !items[0].description?.trim() && !items[0].hsnCode?.trim();
+    formik.setFieldValue('items', onlyEmpty ? [newItem] : [...items, newItem]);
   };
 
   const formik = useFormik({
@@ -759,6 +791,51 @@ export default function PurchasesPage() {
                     Add Item
                   </Button>
                 </Box>
+
+                {/* Quick add from product catalog (auto-fills HSN + GST rate) */}
+                {products.length > 0 && (
+                  <Autocomplete
+                    sx={{ mb: 2 }}
+                    options={products}
+                    value={null}
+                    blurOnSelect
+                    clearOnBlur
+                    onChange={(e, product) => addFromProduct(product)}
+                    getOptionLabel={(option) => option.name || ''}
+                    renderOption={(props, option) => (
+                      <li {...props} key={option.id}>
+                        <Box>
+                          <Typography variant="body2" fontWeight={600}>
+                            {option.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {(option.hsnSac || option.hsnCode) ? `HSN/SAC ${option.hsnSac || option.hsnCode}` : 'No HSN'} ·{' '}
+                            {option.gstRate ?? 0}% GST · {formatCurrency(option.sellingPrice || 0)}
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Quick add item from catalog"
+                        placeholder="Search saved products / services..."
+                        size="small"
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <>
+                              <InputAdornment position="start">
+                                <Search fontSize="small" />
+                              </InputAdornment>
+                              {params.InputProps.startAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                )}
 
                 {formik.values.items.map((item, index) => (
                   <Paper key={index} sx={{ p: 2, mb: 2 }} variant="outlined">
