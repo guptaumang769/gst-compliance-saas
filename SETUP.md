@@ -1,471 +1,278 @@
 # Setup Instructions - GST Compliance SaaS
 
-## 🎯 You Are Here: Initial Project Setup
+> **For the fullest, copy‑paste runnable guide (Docker and non‑Docker paths, seeding, testing, troubleshooting), see [`LOCAL-SETUP-AND-TESTING.md`](LOCAL-SETUP-AND-TESTING.md) — that is the authoritative in‑depth reference.** This file is the quick start for the **finished** project.
 
-**Repository:** https://github.com/guptaumang769/gst-compliance-saas.git  
-**Local Path:** `/Users/ugupta6/Downloads/AI-SaaS-Product/gst-compliance-saas/`
+**Repository:** https://github.com/guptaumang769/gst-compliance-saas.git
+
+**Stack:** Express + Prisma + PostgreSQL 15 + Redis (backend, port **5000**) · React 18 + Vite (frontend, dev port **5173**) · Docker Compose for infra.
 
 ---
 
-## ✅ Prerequisites Checklist
+## ✅ Prerequisites
 
-Before proceeding, ensure you have installed:
+Install these before you start:
 
-- [ ] **Node.js 20 LTS** - Check: `node --version` (should be v20.x.x)
-- [ ] **npm 10+** - Check: `npm --version` (should be 10.x.x)
-- [ ] **Docker Desktop** - Check: `docker --version` (should be 24.x.x+)
-- [ ] **Docker Compose** - Check: `docker-compose --version` (should be v2.x.x)
-- [ ] **Git** - Check: `git --version` (should be 2.x.x+)
+- [ ] **Node.js 20 LTS** — check: `node --version` → `v20.x.x` (the backend pins `"node": "20.x"`)
+- [ ] **npm 10+** — check: `npm --version` (ships with Node 20)
+- [ ] **Docker Desktop** — check: `docker --version` (24.x+)
+- [ ] **Docker Compose v2** — check: `docker compose version`
+- [ ] **Git** — check: `git --version`
 
-If any are missing, install them first:
-- Node.js: https://nodejs.org/
+Install links:
+- Node.js: https://nodejs.org/ (or `brew install node@20`)
 - Docker Desktop: https://www.docker.com/products/docker-desktop
 
+> Prefer to run Postgres/Redis **without** Docker (Homebrew)? See Path B in [`LOCAL-SETUP-AND-TESTING.md`](LOCAL-SETUP-AND-TESTING.md#path-b--manual-no-docker-for-the-app).
+
 ---
 
-## 🚀 Step-by-Step Setup
+## 🚀 Quick Start
 
-### Step 1: Start Database Services (PostgreSQL + Redis)
+### Step 1: Clone the repository
 
 ```bash
-# Navigate to project directory
-cd /Users/ugupta6/Downloads/AI-SaaS-Product/gst-compliance-saas
+git clone https://github.com/guptaumang769/gst-compliance-saas.git
+cd gst-compliance-saas
+```
 
-# Start PostgreSQL and Redis with Docker
-docker-compose up -d
+(If you already have the repo, just `cd` into it.)
 
-# Verify containers are running
+---
+
+### Step 2: Start infrastructure (PostgreSQL + Redis)
+
+From the repo root, start **only** the database and cache in Docker (you'll run the app itself on the host for hot reload):
+
+```bash
+docker compose up -d postgres redis
+
+# Verify both containers are healthy
 docker ps
-
-# You should see:
-# - gst_saas_db (PostgreSQL on port 5432)
-# - gst_saas_redis (Redis on port 6379)
+# Expect: gst_saas_db (0.0.0.0:5432->5432) and gst_saas_redis (0.0.0.0:6379->6379)
 ```
 
-**Check Database Connection:**
+The compose file creates database **`gst_saas`** with user **`postgres`** / password **`postgres123`** — this matches the default `DATABASE_URL` in `.env.example`, so no editing is required.
+
 ```bash
-# Test PostgreSQL connection
+# Optional sanity check
 docker exec -it gst_saas_db psql -U postgres -d gst_saas -c "SELECT 1;"
-
-# Should output: 1
 ```
+
+> You *can* run the whole stack (`docker compose up -d`, which also builds the `backend` and `frontend` containers in **production** mode, frontend on **http://localhost:80**), but for development prefer infra‑only + host app as shown here.
 
 ---
 
-### Step 2: Setup Backend
+### Step 3: Backend — install & configure
 
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Install dependencies (this will take 2-3 minutes)
-npm install
-
-# Copy environment file
-cp .env.example .env
-
-# Generate JWT secret (Mac/Linux)
-openssl rand -base64 32
-
-# Copy the output and paste it in .env file as JWT_SECRET value
-# Edit .env with your favorite editor:
-nano .env
-# OR
-code .env  # If using VS Code
+npm install                 # ~2-3 min the first time
+cp .env.example .env        # create your local env file
 ```
 
-**Important:** Edit `.env` and update:
-- `JWT_SECRET` - Use the random string generated above
-- Keep other values as-is for now (we'll update API keys later)
+**Minimum env vars to boot** (edit `backend/.env`) — everything else in `.env.example` is optional:
+
+```bash
+DATABASE_URL=postgresql://postgres:postgres123@localhost:5432/gst_saas
+JWT_SECRET=replace-with-a-long-random-string
+JWT_EXPIRES_IN=7d
+PORT=5000
+```
+
+Generate a strong secret:
+
+```bash
+openssl rand -base64 32   # paste the output into JWT_SECRET
+```
+
+Optional integrations (Email/SMTP, AWS S3, Razorpay, Sentry) are all safe to leave blank for a local demo — the app boots without them. For example, **logo upload falls back to local disk** when S3 is not configured. See the table in [`LOCAL-SETUP-AND-TESTING.md`](LOCAL-SETUP-AND-TESTING.md#optional--external-integrations-app-runs-without-them) for exactly what degrades if unset.
 
 ---
 
-### Step 3: Setup Prisma (Database ORM)
+### Step 4: Database — generate client, migrate & seed
+
+Still inside `backend/`:
 
 ```bash
-# Still in backend directory
-
-# Initialize Prisma
-npx prisma init
-
-# This creates:
-# - prisma/schema.prisma (database schema definition)
-# - Adds DATABASE_URL to .env (already done)
+npx prisma generate         # generate the Prisma client from prisma/schema.prisma
+npx prisma migrate dev      # create the schema in your DB (prompts for a name on first run, e.g. "init")
+npm run seed                # load demo data (customers, suppliers, invoices, products, demo user)
 ```
 
-Now you need to create the Prisma schema. See: `docs/02-DATABASE-SCHEMA.md`
+**🔑 Demo login (created by the seed):**
 
-**For now, create a basic schema to test:**
+| Field | Value |
+|-------|-------|
+| **Email** | `demo@gstsaas.test` |
+| **Password** | `Demo@1234` |
 
-Create/edit `backend/prisma/schema.prisma`:
+> These credentials only work **after** `npm run seed` completes successfully.
 
-```prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-// User model (basic for now)
-model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  passwordHash  String    @map("password_hash")
-  emailVerified Boolean   @default(false) @map("email_verified")
-  isActive      Boolean   @default(true) @map("is_active")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-
-  @@map("users")
-}
-```
-
-**Run migrations:**
-
-```bash
-# Create and run migration
-npx prisma migrate dev --name init
-
-# Generate Prisma Client
-npx prisma generate
-
-# Open Prisma Studio to view database
-npx prisma studio
-# Opens at: http://localhost:5555
-```
+Handy DB browser: `npx prisma studio` → http://localhost:5555
 
 ---
 
-### Step 4: Create Basic Backend Server
-
-Create `backend/src/index.js`:
-
-```javascript
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-require('dotenv').config();
-
-const app = express();
-const PORT = process.env.PORT || 5000;
-
-// Middleware
-app.use(helmet());
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || 'http://localhost:3000'
-}));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    message: 'GST SaaS Backend is running!',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
-  });
-});
-
-// API routes (to be added)
-app.get('/api', (req, res) => {
-  res.json({
-    message: 'GST Compliance SaaS API',
-    version: '1.0.0',
-    docs: '/api/docs'
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Route ${req.originalUrl} not found`
-  });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔧 Environment: ${process.env.NODE_ENV}`);
-});
-```
-
-**Test the backend:**
+### Step 5: Run the backend
 
 ```bash
-# Start backend server
+# from backend/
 npm run dev
+# 🚀 Server: http://localhost:5000
+# 📊 Health: http://localhost:5000/health
+```
 
-# You should see:
-# 🚀 Server running on http://localhost:5000
-# 📊 Health check: http://localhost:5000/health
+Confirm it's up:
 
-# Open browser: http://localhost:5000/health
-# OR use curl:
-curl http://localhost:5000/health
+```bash
+curl http://localhost:5000/health    # → {"status":"OK", ...}
 ```
 
 ---
 
-### Step 5: Setup Frontend
+### Step 6: Run the frontend
+
+Open a **second** terminal:
 
 ```bash
-# Open NEW terminal (keep backend running)
-# Navigate to project root
-cd /Users/ugupta6/Downloads/AI-SaaS-Product/gst-compliance-saas
-
-# Create React app in frontend directory
-npx create-react-app frontend
-
-# Navigate to frontend
 cd frontend
-
-# Install UI libraries
-npm install @mui/material @emotion/react @emotion/styled @mui/icons-material
-
-# Install other dependencies
-npm install react-router-dom axios @reduxjs/toolkit react-redux
-npm install react-hook-form yup @hookform/resolvers date-fns
-
-# Start frontend
-npm start
-
-# Opens browser at: http://localhost:3000
-# You should see React logo
+npm install        # first time only
+npm run dev
+# ➜ Local: http://localhost:5173
 ```
 
-**Test API connection:**
+The Vite dev server **proxies `/api` → `http://localhost:5000`** (see `frontend/vite.config.js`) and the API client defaults its base URL to `/api`, so **no extra config is needed** when both dev servers run.
 
-Edit `frontend/src/App.js` to test backend connection:
-
-```javascript
-import { useEffect, useState } from 'react';
-import './App.css';
-
-function App() {
-  const [health, setHealth] = useState(null);
-
-  useEffect(() => {
-    fetch('http://localhost:5000/health')
-      .then(res => res.json())
-      .then(data => setHealth(data))
-      .catch(err => console.error('Backend not reachable:', err));
-  }, []);
-
-  return (
-    <div className="App">
-      <header className="App-header">
-        <h1>GST Compliance SaaS</h1>
-        {health ? (
-          <div>
-            <p>✅ Backend Status: {health.status}</p>
-            <p>📡 Message: {health.message}</p>
-            <p>🕐 Time: {new Date(health.timestamp).toLocaleString()}</p>
-          </div>
-        ) : (
-          <p>🔄 Connecting to backend...</p>
-        )}
-      </header>
-    </div>
-  );
-}
-
-export default App;
-```
-
-**If you see backend data on frontend → ✅ Setup successful!**
+Open **http://localhost:5173** and log in with **`demo@gstsaas.test` / `Demo@1234`**.
 
 ---
 
-### Step 6: Commit Your Initial Setup
+## 🧪 Running Tests
+
+### Backend (Jest)
 
 ```bash
-# Navigate to project root
-cd /Users/ugupta6/Downloads/AI-SaaS-Product/gst-compliance-saas
+cd backend
+npm test              # runs jest with --coverage (report written to backend/coverage/)
+npm run test:watch    # watch mode while iterating
+npm test -- gst-calculator.test.js   # run a single suite
+```
 
-# Check status
-git status
+### Frontend (build & lint)
 
-# Add all files (excluding .env due to .gitignore)
-git add .
-
-# Commit
-git commit -m "Initial project setup: Backend + Frontend + Docker + Database"
-
-# Push to GitHub
-git push origin main
+```bash
+cd frontend
+npm run lint          # ESLint over src/
+npm run build         # production build into frontend/dist (catches build-time errors)
+npm run preview       # optional: serve the built bundle locally
 ```
 
 ---
 
-## ✅ Setup Complete Checklist
+## 📇 URLs Reference
 
-After following all steps, verify:
-
-- [ ] PostgreSQL running: `docker ps | grep gst_saas_db`
-- [ ] Redis running: `docker ps | grep gst_saas_redis`
-- [ ] Backend running: http://localhost:5000/health shows "OK"
-- [ ] Prisma Studio accessible: http://localhost:5555
-- [ ] Frontend running: http://localhost:3000 shows React app
-- [ ] Frontend can connect to backend (shows backend status)
-- [ ] Git repository is up to date: `git status` shows "nothing to commit"
-
----
-
-## 🎯 What's Next?
-
-Now that setup is complete, you're ready to start Week 2 tasks:
-
-### **Week 2: Build Authentication Module**
-
-Follow: [docs/05-PHASE-PLAN.md - Week 2](docs/05-PHASE-PLAN.md)
-
-**Your next tasks:**
-1. Create user authentication API (register, login)
-2. Implement GSTIN validation
-3. Create registration and login pages
-4. Setup JWT authentication middleware
-
-**Start here:** Create `backend/src/controllers/authController.js`
-
-See detailed guide: [docs/04-DESIGN-DOCUMENT.md - Authentication Service](docs/04-DESIGN-DOCUMENT.md)
+| Service | URL |
+|---------|-----|
+| Frontend (Vite dev) | http://localhost:5173 |
+| Backend API | http://localhost:5000 |
+| Backend health check | http://localhost:5000/health |
+| API index (route list) | http://localhost:5000/api |
+| Prisma Studio | http://localhost:5555 |
 
 ---
 
 ## 🛠️ Useful Commands Reference
 
-### Docker Commands:
+### Docker (infra)
 ```bash
-# Start services
-docker-compose up -d
-
-# Stop services
-docker-compose down
-
-# View logs
-docker-compose logs -f
-
-# Restart services
-docker-compose restart
+docker compose up -d postgres redis   # start DB + cache
+docker compose down                   # stop everything
+docker compose logs -f postgres       # follow DB logs
+docker compose restart postgres redis # restart infra
 ```
 
-### Backend Commands:
+### Backend (`cd backend`)
 ```bash
-cd backend
-
-# Development mode (auto-reload)
-npm run dev
-
-# Production mode
-npm start
-
-# Database migrations
-npm run prisma:migrate
-
-# View database
-npm run prisma:studio
-
-# Run tests
-npm test
+npm run dev             # development (nodemon auto-reload)
+npm start               # production (node src/index.js)
+npm run prisma:generate # prisma generate
+npm run prisma:migrate  # prisma migrate dev
+npm run prisma:studio   # prisma studio (DB browser)
+npm run seed            # seed demo data
+npm test                # jest --coverage
 ```
 
-### Frontend Commands:
+### Frontend (`cd frontend`)
 ```bash
-cd frontend
-
-# Development mode
-npm start
-
-# Build for production
-npm run build
-
-# Run tests
-npm test
-```
-
-### Git Commands:
-```bash
-# Check status
-git status
-
-# Add files
-git add .
-
-# Commit
-git commit -m "Your message"
-
-# Push to GitHub
-git push origin main
-
-# Pull latest
-git pull origin main
+npm run dev       # Vite dev server (http://localhost:5173)
+npm run build     # production build → frontend/dist
+npm run preview   # serve the built bundle
+npm run lint      # ESLint
 ```
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Issue: Docker containers won't start
+### Docker containers won't start / ports in use
 ```bash
-# Check if ports are already in use
-lsof -i :5432  # PostgreSQL
-lsof -i :6379  # Redis
+lsof -i :5432   # PostgreSQL
+lsof -i :6379   # Redis
+lsof -i :5000   # backend
+lsof -i :5173   # frontend
+kill -9 <PID>   # free the port
+```
+If a port is occupied, free it or change it (backend via `PORT=5001` in `.env`; frontend via `npm run dev -- --port 5174`).
 
-# If occupied, kill the processes or change ports in docker-compose.yml
+### Cannot connect to database
+```bash
+docker ps                         # is gst_saas_db running?
+docker compose up -d postgres redis   # start infra if not
+docker logs gst_saas_db           # inspect DB logs
+psql "$DATABASE_URL" -c "SELECT 1;"   # test the connection string directly
+```
+Confirm `DATABASE_URL` host/port/user/password match the running server (Docker default is `postgres:postgres123`).
+
+### Prisma errors
+```bash
+npx prisma generate        # regenerate the client after schema changes
+npx prisma migrate dev     # create + apply a new migration
+npx prisma migrate reset   # reset a throwaway local DB (destroys local data)
 ```
 
-### Issue: Cannot connect to database
+### "Module not found" after pulling changes
 ```bash
-# Check if container is running
-docker ps
-
-# Check logs
-docker logs gst_saas_db
-
-# Verify DATABASE_URL in .env matches docker-compose.yml credentials
-```
-
-### Issue: "Module not found" errors
-```bash
-# Delete node_modules and reinstall
 rm -rf node_modules package-lock.json
 npm install
 ```
+Run this in whichever package (`backend/` or `frontend/`) reports the error.
 
-### Issue: Prisma errors
+### Node version mismatch
+The backend expects Node 20. With `nvm`:
 ```bash
-# Reset database
-npx prisma migrate reset
-
-# Regenerate client
-npx prisma generate
+nvm install 20 && nvm use 20
+rm -rf backend/node_modules backend/package-lock.json
+cd backend && npm install
 ```
 
 ---
 
 ## 📞 Need Help?
 
-- **Documentation:** Check `/docs` folder
-- **Quick Reference:** See `README.md`
-- **Week Plan:** See `docs/05-PHASE-PLAN.md`
-- **Technical Design:** See `docs/04-DESIGN-DOCUMENT.md`
+- **Authoritative setup & testing guide:** [`LOCAL-SETUP-AND-TESTING.md`](LOCAL-SETUP-AND-TESTING.md)
+- **Acceptance test plan:** [`USER-ACCEPTANCE-TEST-PLAN.md`](USER-ACCEPTANCE-TEST-PLAN.md)
+- **End-to-end product walkthrough:** [`END-TO-END-USER-WORKFLOW.md`](END-TO-END-USER-WORKFLOW.md)
+- **Overview & status:** [`README.md`](README.md) · [`PHASE-STATUS-AND-PLAN.md`](PHASE-STATUS-AND-PLAN.md)
 
 ---
 
-**Setup completed? Great! Now start coding! 🚀**
+## ⚡ TL;DR — 5-line local run
 
-**Next:** [Week 2 - Authentication Module](docs/05-PHASE-PLAN.md#week-2-authentication--user-management)
+```bash
+docker compose up -d postgres redis                              # 1. infra
+cd backend && npm install && cp .env.example .env               # 2. deps + env (set JWT_SECRET)
+npx prisma generate && npx prisma migrate dev && npm run seed    # 3. db + demo data
+npm run dev                                                      # 4. backend → http://localhost:5000
+cd ../frontend && npm install && npm run dev                     # 5. frontend → http://localhost:5173
+```
+
+Then open **http://localhost:5173** and log in with **`demo@gstsaas.test` / `Demo@1234`**.
