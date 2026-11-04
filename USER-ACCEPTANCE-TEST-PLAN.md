@@ -1044,6 +1044,259 @@ Test on:
 
 ---
 
+## 📅 **DAY 8: New Functionality (Latest Round)**
+
+> **Scope:** Logo upload & invoice-number customization (Branding), Reports & Analytics, Product/Service Master, Multi-user Roles + Team + Audit Log, plus coverage for Credit/Debit Notes and GSTR-2A/2B Reconciliation.
+>
+> **Common precondition for every case below:** Run `npm run seed` in `backend/`, then log in at `http://localhost:5173` with the demo **OWNER** account **`demo@gstsaas.test` / `Demo@1234`** (unless a case explicitly asks for a different role). The app uses a **left sidebar** grouped as **Overview** (Dashboard, Reports) · **Sales** (Invoices, Customers, Credit/Debit Notes) · **Purchases** (Purchases, Suppliers) · **GST** (GST Returns, 2A/2B Reconciliation, Compliance Calendar) · **Catalog** (Products) · **Admin** (Team, Pricing, Settings).
+
+---
+
+### **Software Engineer: Branding — Logo Upload (1 hour)**
+
+#### **Test Case 8.1: Upload Business Logo**
+**Precondition:** Logged in as demo/OWNER.
+1. Navigate to **Settings** → **Branding & Invoicing** tab
+2. In the **Business Logo** section, click **Upload / Choose File**
+3. Select a valid PNG or JPG image **under 2MB**
+4. **Expected:** A live **preview** of the logo appears before/after saving
+5. **Expected:** Success message confirming the logo was uploaded (`POST /api/auth/logo`, multipart field `logo`)
+6. Refresh the page
+7. **Expected:** The uploaded logo still displays (persisted)
+
+**💡 Note:** With no S3 credentials configured, the logo is stored on **local disk** and served from `/uploads` — the feature must still work locally.
+
+#### **Test Case 8.2: Logo Appears on Invoice PDF**
+1. Create (or open) any invoice and click **Download PDF**
+2. **Expected:** The uploaded business logo is rendered on the invoice PDF header
+
+#### **Test Case 8.3: Logo Too Large — Rejected (Negative)**
+1. Go to **Settings** → **Branding & Invoicing**
+2. Try to upload an image **larger than 2MB**
+3. **Expected:** Upload is rejected with a clear error (e.g. "Logo upload failed" / file too large); no logo change is saved
+
+#### **Test Case 8.4: Invalid File Type — Rejected (Negative)**
+1. Try uploading a non-image file (e.g. `.pdf`, `.txt`) or a disallowed image type
+2. **Expected:** Error "Invalid file type. Only PNG, JPG and WEBP images are allowed." (allowed: PNG, JPG/JPEG, WEBP)
+
+**✅ Pass Criteria:** Valid logos upload + preview + persist + appear on PDFs; oversized/invalid files are rejected with clear messages.
+
+---
+
+### **CA #2: Branding — Invoice Number Customization (1 hour)**
+
+#### **Test Case 8.5: Set Invoice Prefix & Format**
+**Precondition:** Logged in as demo/OWNER.
+1. Navigate to **Settings** → **Branding & Invoicing** tab
+2. In the **Invoice Numbering** section set:
+   ```
+   Prefix: ACME
+   Format: {PREFIX}-{YYYY}{MM}-{SEQ}
+   Next Number: 1
+   ```
+3. **Expected:** A **live preview** updates as you type (e.g. `ACME-202607-0001`)
+4. Click **Save** (persists via `PUT /api/auth/settings`)
+5. **Expected:** Success message; settings persist after refresh
+
+#### **Test Case 8.6: New Invoice Follows the Format**
+1. Go to **Invoices** → **Create Invoice**, add a line item, and save
+2. **Expected:** The generated invoice number matches the configured format and prefix (e.g. `ACME-202607-0001`), and the sequence increments on the next invoice
+
+#### **Test Case 8.7: Token Coverage**
+1. Change the format to use each supported token and confirm the preview: `{PREFIX}`, `{YYYY}`, `{YY}`, `{MM}`, `{SEQ}`
+2. Example: `{PREFIX}/{YY}-{SEQ}` → preview like `ACME/26-0001`
+3. **Expected:** Each token is substituted correctly in the preview
+
+#### **Test Case 8.8: Next-Number Floor**
+1. Set **Next Number** to `500`, save
+2. Create a new invoice
+3. **Expected:** The sequence starts at (or above) `500` — the next number acts as a minimum floor
+
+#### **Test Case 8.9: Invalid / Odd Format (Negative)**
+1. Enter a format with **no `{SEQ}` token** (e.g. `{PREFIX}-{YYYY}`) or leave the prefix blank
+2. **Expected:** The preview reflects exactly what was entered; if a format cannot produce unique numbers, the system falls back to safe defaults rather than creating duplicate invoice numbers (verify two invoices never collide)
+
+**✅ Pass Criteria:** Prefix/format/next-number save and preview correctly; new invoices follow the format; sequence stays collision-free.
+
+---
+
+### **CA #1: Reports & Analytics (2 hours)**
+
+#### **Test Case 8.10: Open Reports Page**
+**Precondition:** Logged in as demo/OWNER; seed data present.
+1. From the sidebar **Overview → Reports** (route `/reports`)
+2. **Expected:** Reports page loads with tabs: **Sales Register**, **Purchase Register**, **Tax Rate Summary**, **HSN Summary**, **ITC Analysis**
+
+#### **Test Case 8.11: Sales Register with Date Range**
+1. On the **Sales Register** tab, set a **Start Date** and **End Date** covering the seeded invoices
+2. **Expected:** Table lists sales invoices in the period with taxable value and tax columns (`GET /api/reports/sales-register?startDate&endDate`)
+
+#### **Test Case 8.12: Purchase Register**
+1. Switch to **Purchase Register**, apply a date range
+2. **Expected:** Purchase rows with ITC/tax columns appear
+
+#### **Test Case 8.13: Tax Rate Summary**
+1. Open **Tax Rate Summary**
+2. **Expected:** Amounts grouped per GST rate (0/5/18/40%), with taxable value and tax totals
+
+#### **Test Case 8.14: HSN Summary**
+1. Open **HSN Summary**
+2. **Expected:** Rows grouped by HSN/SAC with quantity, taxable value and tax (matches GSTR-1 HSN table logic)
+
+#### **Test Case 8.15: ITC Analysis**
+1. Open **ITC Analysis**
+2. **Expected:** ITC available/eligible figures derived from purchases in the period
+
+#### **Test Case 8.16: Export CSV per Tab**
+1. On each tab, click **Export CSV**
+2. **Expected:** A `.csv` file downloads (e.g. `sales-register.csv`, `hsn-summary.csv` — `?format=csv`)
+3. Open the file in Excel / Numbers / Google Sheets
+4. **Expected:** Headers + rows open cleanly and match the on-screen table
+
+#### **Test Case 8.17: Empty / Invalid Date Range (Negative)**
+1. Set an **End Date earlier than the Start Date**, or a range with **no transactions**
+2. **Expected:** The report returns **no rows** (empty table / "no data") gracefully — no crash, and CSV export of an empty report still downloads a valid (header-only) file
+
+**✅ Pass Criteria:** All five report tabs load with correct figures for the chosen range; CSV export works and opens on every tab; empty ranges handled gracefully.
+
+---
+
+### **Data Engineer: Product / Service Master (2 hours)**
+
+#### **Test Case 8.18: Create a Product (GOODS)**
+**Precondition:** Logged in as demo/OWNER.
+1. Sidebar **Catalog → Products** (route `/products`) → **Add Product**
+2. Fill in:
+   ```
+   Name: Dell Latitude Laptop
+   Type: GOODS
+   HSN/SAC: 8471
+   Default GST Rate: 18
+   Cess: 0
+   Unit: PCS
+   Selling Price: 55000
+   Description: 14-inch business laptop
+   ```
+3. Click **Create**
+4. **Expected:** Product appears in the list; success message (`POST /api/products`)
+
+#### **Test Case 8.19: Create a Service (SERVICE)**
+1. Add a product with **Type: SERVICE**, SAC `998311`, GST 18%
+2. **Expected:** Saved with the SERVICE type
+
+#### **Test Case 8.20: Search & Pagination**
+1. Use the **search** box to search by name / HSN / description
+2. **Expected:** Filtered results returned
+3. Create enough products (or use seeded data) to trigger **pagination** and navigate pages
+4. **Expected:** Pagination works; page/limit respected
+
+#### **Test Case 8.21: Edit a Product**
+1. Edit a product; change GST rate / selling price
+2. **Expected:** Changes saved (`PUT /api/products/:id`)
+
+#### **Test Case 8.22: Auto-fill on Invoice / Purchase Line Item**
+1. Go to **Invoices → Create Invoice** (and repeat on **Purchases → Add Purchase**)
+2. On a line item, select / pick a product from the catalog
+3. **Expected:** **HSN/SAC and default GST rate auto-fill** from the product master
+4. **Expected:** Values remain editable on the line
+
+#### **Test Case 8.23: Soft Delete**
+1. Delete a product
+2. **Expected:** It disappears from the active list (`DELETE /api/products/:id`), but it is a **soft delete** — the underlying record is marked inactive, not physically removed (verify past invoices referencing it still render)
+
+#### **Test Case 8.24: Missing Required Field (Negative)**
+1. Try to create a product with **no name**
+2. **Expected:** Validation error "Missing required field: name"; product not created
+
+#### **Test Case 8.25: Invalid Type (Negative)**
+1. Attempt to save a product with a type other than GOODS/SERVICE (e.g. via an odd value)
+2. **Expected:** Error "Invalid type. Must be one of: GOODS, SERVICE"
+
+**✅ Pass Criteria:** Product CRUD with search + pagination works; catalog auto-fills HSN + GST on line items; soft delete hides but preserves records; validations trigger.
+
+---
+
+### **Software Engineer: Multi-user Roles, Team & Audit Log (2 hours)**
+
+#### **Test Case 8.26: View Team Members**
+**Precondition:** Logged in as demo/OWNER.
+1. Sidebar **Admin → Team** (route `/team`)
+2. **Expected:** Members list shows each user with a **role chip**: **OWNER**, **ACCOUNTANT**, or **VIEWER**
+3. **Expected:** An **Activity Log** tab is present
+
+#### **Test Case 8.27: Invite a Team Member (OWNER)**
+1. Click **Invite**; enter:
+   ```
+   Name: Anita Accountant
+   Email: anita@example.com
+   Role: ACCOUNTANT
+   ```
+2. Click **Send Invite** (`POST /api/team/invite`)
+3. **Expected:** Success; the response returns a **temporary password** shown to the OWNER
+4. **Expected:** New member appears in the list with an **ACCOUNTANT** chip
+
+#### **Test Case 8.28: Change a Member's Role (OWNER)**
+1. For the invited member, change role from **ACCOUNTANT** to **VIEWER**
+2. **Expected:** Role chip updates (`PUT /api/team/:id/role`)
+
+#### **Test Case 8.29: Remove a Member (OWNER)**
+1. Remove a non-owner member
+2. **Expected:** Member removed from active list (`DELETE /api/team/:id`, soft-remove)
+
+#### **Test Case 8.30: Activity / Audit Log**
+1. Open the **Activity Log** tab (`GET /api/audit-logs`)
+2. **Expected:** The invite / role-change / remove actions you just performed appear as audit entries (action, entity type, who, when)
+
+#### **Test Case 8.31: VIEWER is Read-Only (Negative)**
+1. Log in as the **VIEWER** member (use the temporary password from the invite)
+2. Try a mutating action on a new module — e.g. **create a Product** or **create/update via Team**
+3. **Expected:** Blocked with **403 Access forbidden** ("This action requires one of the following roles: …"); read/list still works
+4. **Expected:** OWNER/ACCOUNTANT can write to `/api/products`, but VIEWER cannot
+
+#### **Test Case 8.32: Non-OWNER Cannot Invite (Negative)**
+1. As an **ACCOUNTANT** or **VIEWER**, attempt **Invite**, **change role**, or **remove member**
+2. **Expected:** **403** — these Team actions are **OWNER-only**
+
+#### **Test Case 8.33: Legacy Token Treated as OWNER**
+1. Using an existing single-user account whose token has no explicit role
+2. **Expected:** Full access is retained (missing role is treated as **OWNER** for backward compatibility)
+
+**✅ Pass Criteria:** OWNER can list/invite/change-role/remove; audit log records mutations; VIEWER is read-only; non-OWNER cannot manage the team; legacy (roleless) tokens keep OWNER access.
+
+---
+
+### **CA #1: Credit/Debit Notes & GSTR-2A/2B Reconciliation (1.5 hours)**
+
+#### **Test Case 8.34: Create a Credit Note**
+**Precondition:** Logged in as demo/OWNER; at least one invoice exists.
+1. Sidebar **Sales → Credit/Debit Notes** (route `/credit-debit-notes`)
+2. Create a **Credit Note** linked to an existing invoice (sales return / rate reduction)
+3. **Expected:** Note saved with reference to the original invoice and correct GST adjustment
+
+#### **Test Case 8.35: Create a Debit Note**
+1. Create a **Debit Note** (upward value/tax adjustment)
+2. **Expected:** Note saved with the correct tax impact
+
+#### **Test Case 8.36: Notes Reflect in Returns**
+1. Generate GSTR-1 / GSTR-3B for the relevant month
+2. **Expected:** Credit/Debit note adjustments are reflected in the return figures
+
+#### **Test Case 8.37: GSTR-2A/2B Reconciliation — View**
+1. Sidebar **GST → 2A/2B Reconciliation** (route `/gstr2-reconciliation`)
+2. **Expected:** Reconciliation screen loads, comparing your recorded purchases/ITC against 2A/2B data
+
+#### **Test Case 8.38: Reconciliation — Matched vs Mismatched**
+1. Review the matched / mismatched / missing categorization
+2. **Expected:** Line items are grouped so the user can see where their purchase records and supplier-reported data agree or differ
+
+**✅ Pass Criteria:** Credit/Debit notes create correctly and affect returns; 2A/2B reconciliation loads and categorizes matches/mismatches.
+
+---
+
+**✅ DAY 8 EXIT CRITERIA:** All new-functionality cases (8.1–8.38) pass, including the negative/edge cases (oversized logo, odd invoice format, empty report range, duplicate/soft-deleted product, VIEWER blocked, non-OWNER cannot invite, CSV downloads & opens).
+
+---
+
 ## 📊 Bug Reporting Format
 
 ### **Use This Format for All Bugs:**
@@ -1199,6 +1452,13 @@ Create a Google Sheet with these columns:
 - [ ] Notification settings persist across page reloads
 - [ ] Razorpay checkout opens (test mode)
 - [ ] Trial subscription auto-starts on registration
+- [ ] Business logo uploads (≤2MB PNG/JPG/WEBP), previews, and appears on invoice PDFs
+- [ ] Invoice number prefix/format/next-number save and new invoices follow the format
+- [ ] Reports tabs (Sales/Purchase Register, Tax Rate, HSN, ITC) load with CSV export
+- [ ] Product/Service master CRUD + search/pagination + auto-fill HSN/GST on line items
+- [ ] Team roles (OWNER/ACCOUNTANT/VIEWER): invite, change role, remove; VIEWER read-only
+- [ ] Audit/Activity log records team mutations
+- [ ] Credit/Debit Notes and GSTR-2A/2B Reconciliation work
 
 ### **Nice to Have:**
 - [ ] Fast performance
@@ -1280,9 +1540,14 @@ MODULES TESTED:
 ✅ GST Returns (GSTR-1)
 ✅ GST Returns (GSTR-3B)
 ✅ Dashboard & Reports
-✅ Settings (Business, User, Bank, Filing, Notifications)
+✅ Settings (Business, User, Bank, Filing, Notifications, Branding & Invoicing)
 ✅ Subscription & Pricing
 ✅ Compliance Calendar
+✅ Logo Upload & Invoice Number Customization
+✅ Reports & Analytics (Sales/Purchase Register, Tax Rate, HSN, ITC + CSV export)
+✅ Product / Service Master
+✅ Multi-user Roles, Team & Audit Log
+✅ Credit/Debit Notes & GSTR-2A/2B Reconciliation
 ✅ Regression Testing
 
 CRITICAL FINDINGS:

@@ -2,7 +2,7 @@
 
 ## 📖 How Your Product Works for Real Businesses
 
-**Last Updated:** January 30, 2026
+**Last Updated:** July 30, 2026
 
 ---
 
@@ -397,6 +397,143 @@ TABLE 5 - Tax Payable:
 
 ---
 
+### **7. 📊 REPORTS & ANALYTICS** - Deep-Dive Into Your Numbers
+
+**What you do here:**
+- Open the **Reports** tab (top of the sidebar under *Overview*)
+- Pick a **date range** (e.g. this month, this quarter, last financial year)
+- Flip between five ready-made reports:
+  - **Sales Register** - every sales invoice in the period, invoice-wise
+  - **Purchase Register** - every purchase in the period, with ITC
+  - **Tax Rate Summary** - totals grouped by GST rate (0%, 5%, 18%, 40%)
+  - **HSN Summary** - totals grouped by HSN/SAC code (needed for GSTR-1)
+  - **ITC Analysis** - how much Input Tax Credit is available/eligible
+- Click **Export CSV** on any tab to download the exact table
+
+**Why it's useful:**
+- Rajesh no longer opens Excel to "add things up" — the numbers are already sliced for him
+- The **HSN Summary** matches what GSTR-1 needs, so cross-checking a return takes seconds
+- The **CSV export** means he can email a clean register to his CA or open it in Excel
+
+**Real-world use:**
+```
+Month-end, Rajesh opens Reports:
+  1. Sets date range: 1 Jan – 31 Jan 2026
+  2. Sales Register → "Yes, all 30 invoices are there"
+  3. Export CSV → sends "January Sales Register" to his CA
+  4. Tax Rate Summary → "₹18,000 at 18%, ₹4,000 at 5%… looks right"
+  5. HSN Summary → cross-checks against GSTR-1 before filing
+```
+
+---
+
+### **8. 📦 PRODUCTS (CATALOG)** - Your Reusable Item List
+
+**What you do here:**
+- Open **Products** (sidebar under *Catalog*)
+- **Add each product or service you sell/buy once**, with:
+  - Name, Type (**GOODS** or **SERVICE**)
+  - **HSN/SAC** code, **default GST rate**, cess
+  - Unit, selling price, description
+- **Search** and **paginate** through a large catalog
+- **Edit** or **soft-delete** items (deleted items just disappear from the list; old invoices that used them are untouched)
+
+**Why it's a huge time-saver:**
+- When Rajesh creates an invoice or records a purchase, he **picks the product from the catalog** and the line item **auto-fills the HSN code and GST rate** for him
+- No more typing "8471" and "18%" a hundred times a month
+- No more accidentally putting the wrong GST rate on the same product
+
+**Real-world use:**
+```
+Rajesh sets up his catalog once:
+  - "Dell Laptop"  → GOODS, HSN 8471, 18% GST, ₹55,000
+  - "AMC Service"  → SERVICE, SAC 998311, 18% GST
+
+Later, creating an invoice:
+  1. Add line item → start typing "Dell"
+  2. Select "Dell Laptop" → HSN 8471 and 18% GST fill in automatically
+  3. Just enter quantity → done!
+```
+
+---
+
+### **9. 👥 TEAM & USERS** - Working With Roles
+
+**What you do here:**
+- Open **Team** (sidebar under *Admin*) - available to the business **Owner**
+- See every team member with a **role chip**:
+  - **OWNER** - full access (that's Rajesh)
+  - **ACCOUNTANT** - can create/edit records (invoices, purchases, products)
+  - **VIEWER** - read-only; can look but not change anything
+- As the **Owner**, Rajesh can:
+  - **Invite** a member (enter name, email, role) → the app returns a **temporary password** to share with them
+  - **Change** a member's role
+  - **Remove** a member
+- Switch to the **Activity Log** tab to see an **audit trail** of who did what (invites, role changes, removals, and more)
+
+**Why it matters:**
+- Rajesh's two salespeople can now **enter invoices themselves** without being able to delete data or change the team
+- His CA can be added as an **Accountant** to help during filing season, then set to **Viewer** afterwards
+- The **Activity Log** answers "who changed this?" — great for trust and for audits
+
+**Real-world use:**
+```
+Filing season:
+  1. Rajesh → Team → Invite
+     Name: Anita (CA), Email: anita@…, Role: ACCOUNTANT
+  2. App shows a temporary password → Rajesh shares it with Anita
+  3. Anita logs in, helps clean up invoices and generate returns
+  4. After filing, Rajesh changes Anita's role to VIEWER
+  5. Team → Activity Log shows every step, with timestamps
+```
+
+> **Note for existing single-user accounts:** if an older account has no role set, the app treats it as **Owner**, so nothing breaks for people who were using the product before roles existed.
+
+---
+
+### **10. 📝 CREDIT / DEBIT NOTES** - Fixing & Adjusting Invoices
+
+**What you do here:**
+- Open **Credit/Debit Notes** (sidebar under *Sales*)
+- Raise a **Credit Note** when a sale is reduced (return, discount, rate correction downward)
+- Raise a **Debit Note** when a value/tax needs to go **up**
+- Link the note to the original invoice; the system handles the GST adjustment
+
+**Why it matters:**
+- Real businesses issue returns and corrections — GST law requires these as formal notes, not by editing the original invoice
+- The adjustments **flow into GSTR-1/GSTR-3B** automatically, so the returns stay accurate
+
+**Real-world use:**
+```
+A customer returns 1 of 5 laptops:
+  1. Rajesh → Credit/Debit Notes → New Credit Note
+  2. Links it to INV-001, credits 1 laptop + its GST
+  3. Month-end returns automatically reflect the reduced liability
+```
+
+---
+
+### **11. 🔁 GSTR-2A / 2B RECONCILIATION** - Matching Your Purchases to the Portal
+
+**What you do here:**
+- Open **2A/2B Reconciliation** (sidebar under *GST*)
+- The system compares **your recorded purchases / ITC** against the **GSTR-2A/2B** data (what your suppliers reported)
+- Line items are grouped as **matched**, **mismatched**, or **missing**
+
+**Why it matters:**
+- You can only safely claim ITC that your **suppliers actually reported** — this is now enforced by GST rules
+- Reconciliation shows Rajesh exactly where his books and the portal disagree, **before** he claims ITC and gets a notice
+
+**Real-world use:**
+```
+Before claiming ITC:
+  1. Rajesh → 2A/2B Reconciliation
+  2. Sees "Delhi Electronics: matched ✅" but "Local Vendor: missing ❌"
+  3. Follows up with the vendor to file, avoiding a wrong ITC claim
+```
+
+---
+
 ## 🔄 Complete Month-End Workflow for Rajesh
 
 Let me show you **exactly what Rajesh does each month** using your product:
@@ -406,6 +543,7 @@ Let me show you **exactly what Rajesh does each month** using your product:
 **Every time he makes a sale:**
 ```
 1. Creates invoice in your product (2 minutes)
+   - Picks each item from the Product catalog → HSN + GST rate auto-fill
 2. System calculates GST automatically
 3. Prints and gives to customer
 4. ✅ Sale recorded!
@@ -431,6 +569,16 @@ Let me show you **exactly what Rajesh does each month** using your product:
 - Check total revenue, invoices, tax liability
 - Verify everything looks correct
 - Check for any errors
+```
+
+**Step 1b: Export Registers from Reports (5 min)**
+```
+- Go to Reports tab (Overview)
+- Set the date range to the month being closed
+- Sales Register → Export CSV (share with CA / keep for records)
+- Purchase Register → Export CSV
+- Cross-check Tax Rate Summary and HSN Summary before filing
+- Peek at ITC Analysis to know how much credit is available
 ```
 
 **Step 2: Generate GSTR-1 (5 min)**
@@ -559,6 +707,29 @@ Here's how the data flows through the system:
        ↓
    [FILE TO GOVERNMENT] ✅
 ```
+
+**Supporting modules that make the flow smoother:**
+
+- **📦 Products (Catalog)** sits *before* Invoices & Purchases — pick an item and its HSN + GST rate auto-fill, so every transaction is consistent.
+- **📊 Reports** sits *alongside* the Dashboard — it reads the same sales/purchase data and slices it into registers and summaries (with CSV export) for review and hand-off to a CA.
+- **📝 Credit/Debit Notes** feed adjustments back into GSTR-1/3B so returns stay accurate after returns or corrections.
+- **🔁 2A/2B Reconciliation** sits *before* claiming ITC — it checks your purchases against what suppliers reported.
+- **👥 Team & Audit Log** wrap everything: multiple people (Owner/Accountant/Viewer) work together safely, and every change is logged.
+
+---
+
+## 🧭 Getting Around: The Sidebar
+
+The app uses a **left sidebar**, grouped so related tasks sit together:
+
+- **Overview** → Dashboard, **Reports**
+- **Sales** → Invoices, Customers, **Credit/Debit Notes**
+- **Purchases** → Purchases, Suppliers
+- **GST** → GST Returns, **2A/2B Reconciliation**, Compliance Calendar
+- **Catalog** → **Products**
+- **Admin** → **Team**, Pricing, Settings
+
+Rajesh reads it top-to-bottom the way his month flows: check the **Overview**, record **Sales** and **Purchases**, handle **GST**, keep the **Catalog** tidy, and manage the business under **Admin**. Branding (logo + invoice numbering) lives under **Settings → Branding & Invoicing**.
 
 ---
 
@@ -810,12 +981,15 @@ Payback: Immediate (first month itself)
 "Automated GST compliance software that turns 2 days of manual work into 30 minutes of automated accuracy, saving businesses time, money, and stress."
 
 **The Big Picture:**
-1. **Customers & Suppliers:** One-time setup of your business network
-2. **Invoices:** Record every sale, system calculates GST
+1. **Products & Customers & Suppliers:** One-time setup of your catalog and business network
+2. **Invoices:** Record every sale (items auto-fill from the catalog), system calculates GST
 3. **Purchases:** Record every purchase, system calculates ITC
-4. **Dashboard:** Monitor everything at a glance
-5. **GST Returns:** Auto-generate and file in minutes
-6. **Result:** GST-compliant business running on autopilot
+4. **Credit/Debit Notes:** Handle returns and corrections the GST-compliant way
+5. **Dashboard & Reports:** Monitor at a glance, then export registers & summaries (CSV)
+6. **2A/2B Reconciliation:** Match purchases to the portal before claiming ITC
+7. **GST Returns:** Auto-generate and file in minutes
+8. **Team & Audit Log:** Work together with roles (Owner/Accountant/Viewer), fully audited
+9. **Result:** GST-compliant business running on autopilot
 
 **End Goal:**
 Every small business in India uses your product to stay GST-compliant effortlessly!
@@ -826,6 +1000,7 @@ Every small business in India uses your product to stay GST-compliant effortless
 
 ---
 
-**Document Version:** 1.0  
+**Document Version:** 1.1  
 **Created:** January 30, 2026  
+**Updated:** July 30, 2026 — added Reports, Products (Catalog), Team/Users & Audit Log, Credit/Debit Notes, 2A/2B Reconciliation, and the new sidebar navigation  
 **Use Case:** Product explanation, pitch deck, training, marketing

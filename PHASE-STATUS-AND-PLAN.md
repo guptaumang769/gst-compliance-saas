@@ -1,10 +1,59 @@
 # 📋 GST Compliance SaaS – Phase Status & Development Plan
 
-**Version:** 2.0  
-**Date:** March 17, 2026  
-**Project Duration So Far:** ~11 weeks  
-**Tech Stack:** React.js + Express.js + PostgreSQL + Prisma ORM  
-**Status:** Phase 1 MVP — Feature complete, deployment ready
+**Version:** 4.0  
+**Date:** July 30, 2026  
+**Project Duration So Far:** ~11 weeks (MVP) + Phase 2 feature round + Phase 3 feature round  
+**Tech Stack:** React.js + Express.js + PostgreSQL + Prisma ORM (+ Expo React Native mobile app)  
+**Status:** Phase 1 MVP complete + Phase 2 complete + Phase 3 feature round complete (see "Round 3" below)
+
+> **Local setup & testing:** see [`LOCAL-SETUP-AND-TESTING.md`](LOCAL-SETUP-AND-TESTING.md) for the authoritative copy‑paste guide to run and test everything on one laptop.
+>
+> **Production & publishing:** see [`PRODUCTION-DEPLOYMENT-AND-PUBLISHING.md`](PRODUCTION-DEPLOYMENT-AND-PUBLISHING.md) for going live (backend/frontend hosting, turning mocks into real integrations) and publishing the mobile app to the Play Store / App Store.
+
+---
+
+## 🆕 Round 3 — Newly Completed (July 30, 2026)
+
+This round delivered the remaining Phase 2 items and much of Phase 3, plus a set of "loose end" fixes. **Be honest about what's real vs simulated:** several features run as a **local mock/stub** so the full flow can be demoed offline. The **Real?** column below states this plainly. See the **Roadmap** section for how each mock is made production-ready.
+
+| Feature | Page / Endpoint | Status | Real? | Notes |
+|---------|-----------------|--------|-------|-------|
+| **Loose ends** — Team roles aligned to `OWNER/ACCOUNTANT/VIEWER`; notifications driven by real Insights; committed initial Prisma migration (`prisma/migrations/0001_init/`); real Jest unit suite + integration scripts split to `tests/integration/`; web bundle code-splitting | Team, header, build | ✅ | ✅ Fully local | Quality/consistency round; no external deps |
+| **E-Way Bill generation** | `/eway-bills` | ✅ | ⚠️ Mock EWB number | Create / generate mock EWB no. + validity / cancel / create-from-invoice. Not registered with the NIC portal. |
+| **E-Invoice / IRN + QR** | Action on `/invoices` | ✅ | 🟡 **Local mock provider** | Generates IRN / AckNo / signed QR image via `backend/src/services/eInvoiceProvider.js`. **Real filing needs a GSTN-authorised IRP/GSP.** |
+| **TDS/TCS management** | `/tds-tcs` | ✅ | ✅ Fully local | Record TDS/TCS entries + monthly summary. |
+| **Inventory** | `/inventory` | ✅ | ✅ Fully local | Product stock, stock adjustments, low-stock, movements. |
+| **Bank reconciliation** | `/bank-reconciliation` | ✅ | ✅ Fully local | Import bank CSV (`date,description,amount,type`), auto-match to invoices/purchases, manual match/ignore, summary. |
+| **Financial statements** | `/financials` | ✅ | ✅ Fully local (simplified) | Simplified P&L + indicative Balance Sheet, with disclaimer. |
+| **Insights** | `/insights` + dashboard widget + notifications | ✅ | ✅ Fully local (rules-based, no LLM) | Rules engine drives Insights page, dashboard widget and header notifications. |
+| **Business Admin panel** | `/admin` | ✅ | ✅ Fully local | Business-scoped account overview, activity, system health (**not** platform super-admin). |
+| **GST auto-filing** | `/gst-filing/file` | ✅ (stub) | 🟡 **Stub — returns SIMULATED** | Simulates filing. **Real filing needs GSP + DSC/EVC.** |
+| **WhatsApp share** | Action on `/invoices` | ✅ | ✅ Real `wa.me` link (no creds) | Generates a real `wa.me` deep link. Full WhatsApp **Business Cloud API** is a separate integration. |
+| **GST chatbot** | Floating helper | ✅ | ✅ Fully local (rules/FAQ, no LLM) | Answers common GST questions from a rules/FAQ base. |
+| **Bulk CSV import** | Customers / Suppliers / Products | ✅ | ✅ Fully local | Import via CSV with downloadable templates. |
+| **Invoice Terms & Conditions** | Settings + per-invoice | ✅ | ✅ Fully local | `defaultTerms` business setting + per-invoice T&C rendered on the PDF. |
+
+**New backend deps this round:** `qrcode` (E-Invoice QR), `csv-parse` (bank + bulk-import CSV) — both already in `backend/package.json`.
+
+**Legend for "Real?":** ✅ Fully local = works end-to-end offline · ⚠️ Mock number = flow works, the identifier is fabricated locally · 🟡 Mock/Stub = intentionally simulated; needs a real third-party integration for production (details in the Roadmap + production doc).
+
+---
+
+## 🆕 Latest Round — Newly Completed (July 30, 2026)
+
+This round closed several deferred Phase 1 items and delivered the core of Phase 2:
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Logo Upload** | ✅ | Upload business logo (Settings); rendered on invoice PDFs. Uses AWS S3 when configured, otherwise **falls back to local disk** so it works on a local demo. |
+| **Invoice Number Format Customization** | ✅ | Configurable prefix / start number / format in Settings; overrides the old hardcoded `INV-YYYYMM-XXXX`. |
+| **Reports & Analytics** | ✅ | Sales register, Purchase register, tax‑rate‑wise summary, HSN summary, ITC analysis (available vs utilized vs balance), all with **CSV export**. |
+| **Product / Service Master** | ✅ | Reusable catalog with HSN/SAC + default GST rate; auto‑populates invoice/purchase line items. |
+| **Multi‑User Roles + Team Invites + Audit Log** | ✅ | Roles: **Owner / Accountant / Viewer** with route guards; owner can invite team members; all create/edit/delete actions tracked in an **Audit Log**. |
+| **Credit / Debit Notes** | ✅ | (Previously implemented) Linked to original invoice; reflected in GSTR‑1 (9A/9B/9C). |
+| **GSTR‑2A / 2B Reconciliation** | ✅ | (Previously implemented) Import, auto‑match with purchases, mismatch report, ITC report, per‑entry actions. |
+
+See the **Roadmap — Not Yet Implemented** section near the end for what is intentionally out of scope for a local demo and why.
 
 ---
 
@@ -46,9 +95,9 @@
 | 2.3 | GSTIN & PAN Read-Only | ✅ | `SettingsPage.jsx` | Cannot be changed after registration (as per GST rules) |
 | 2.4 | Filing Frequency Setting (monthly/quarterly) | ✅ | `SettingsPage.jsx` → Bank & Filing tab | Monthly/Quarterly dropdown in Settings, saved via `PUT /api/auth/settings` |
 | 2.5 | Bank Details | ✅ | `SettingsPage.jsx` → Bank & Filing tab, `authService.js` → `updateBusinessSettings()` | Bank name, account, IFSC, branch editable in Settings |
-| 2.6 | Logo Upload | ❌ | `schema.prisma` → `logoUrl` | Schema field exists but no upload functionality |
+| 2.6 | Logo Upload | ✅ | `SettingsPage.jsx`, `schema.prisma` → `logoUrl`, `pdfService.js` | Upload logo from Settings; shown on invoice PDF. S3 when configured, else **local‑disk fallback** (works locally) |
 | 2.7 | Notification Settings | ✅ | `SettingsPage.jsx` | Toggle states persisted to localStorage |
-| 2.8 | Invoice Numbering Format (prefix, start number) | ❌ | `invoiceNumberGenerator.js` uses auto-format | Hardcoded format `INV-YYYYMM-XXXX`; no customization UI |
+| 2.8 | Invoice Numbering Format (prefix, start number) | ✅ | `invoiceNumberGenerator.js`, Settings UI | Customizable prefix/start number/format; replaces hardcoded `INV-YYYYMM-XXXX` |
 
 ---
 
@@ -261,13 +310,13 @@
 | B5 | **Filing Frequency Edit** | ✅ | Monthly/Quarterly dropdown in Settings → Bank & Filing tab |
 | B6 | **User Email & Phone Edit** | ✅ | Already existed in Settings → User Profile tab |
 | B7 | **Compliance Calendar** | ✅ | `ComplianceCalendarPage.jsx` with monthly grid, GSTR-1/3B/PMT-06 deadlines, color-coded, upcoming list |
-| B8 | **Invoice Number Format Customization** | ❌ | Deferred to Phase 2 |
+| B8 | **Invoice Number Format Customization** | ✅ | Completed in the July 2026 round — customizable prefix/start number/format |
 
 ### C. Nice to Have (P2) — Can be done post-launch
 
 | # | Feature | Effort | Details |
 |---|---------|--------|---------|
-| C1 | Logo Upload for Invoices | 1 day | Upload business logo; display on PDF |
+| C1 | Logo Upload for Invoices | ✅ Done | Completed July 2026 — upload logo, shown on PDF; S3 or local‑disk fallback |
 | C2 | Bulk CSV Import (Customers, Suppliers) | 2 days | Upload CSV → parse → create records |
 | C3 | Invoice Terms & Conditions Template | 0.5 day | Default T&C in Settings; auto-populate on invoices |
 | C4 | Mobile Responsive Polish | 2 days | Thorough mobile testing and CSS adjustments |
@@ -276,7 +325,9 @@
 
 ## 🟢 PHASE 2: Advanced Features (Month 5–8)
 
-### 12. Credit/Debit Notes
+### 12. Credit/Debit Notes — ✅ IMPLEMENTED
+
+> Models `CreditDebitNote` / `CreditDebitNoteItem` exist; API mounted at `/api/credit-debit-notes`; reflected in GSTR‑1.
 
 | # | Feature | Priority | Effort | Details |
 |---|---------|----------|--------|---------|
@@ -286,7 +337,9 @@
 | 12.4 | Impact on Dashboard Totals | P1 | 1 day | Subtract credit notes from revenue |
 | 12.5 | Credit/Debit Note PDF | P2 | 1 day | PDF template for notes |
 
-### 13. Multi-User Access & Roles
+### 13. Multi-User Access & Roles — ✅ IMPLEMENTED (July 2026)
+
+> Owner / Accountant / Viewer roles with route guards, team invites, and a full Audit Log. `role` field lives on `User` in `schema.prisma`.
 
 | # | Feature | Priority | Effort | Details |
 |---|---------|----------|--------|---------|
@@ -295,7 +348,9 @@
 | 13.3 | Permission Matrix | P1 | 1 day | Owner: full access; Accountant: CRUD invoices/purchases; Viewer: read-only |
 | 13.4 | Activity Audit Log | P1 | 2 days | Track who created/edited/deleted what; `AuditLog` model |
 
-### 14. GSTR-2A/2B Reconciliation
+### 14. GSTR-2A/2B Reconciliation — ✅ IMPLEMENTED
+
+> Model `GSTR2Reconciliation` exists; API mounted at `/api/gstr2-reconciliation` (import, auto‑match, summary, ITC report, mismatch actions).
 
 | # | Feature | Priority | Effort | Details |
 |---|---------|----------|--------|---------|
@@ -305,24 +360,30 @@
 | 14.4 | Accept/Reject ITC per Invoice | P1 | 1 day | Mark matched items; reject unmatched |
 | 14.5 | Reconciliation Dashboard | P1 | 2 days | Summary cards: matched, unmatched, excess ITC at risk |
 
-### 15. E-Way Bill Generation
+### 15. E-Way Bill Generation — ✅ IMPLEMENTED (Jul 2026) · ⚠️ mock EWB number
 
-| # | Feature | Priority | Effort | Details |
+> Pages at `/eway-bills`. Create, generate a **mock** EWB number + validity, cancel, and create-from-invoice all work locally. The number is generated locally and is **not** registered with the NIC E-Way Bill portal (that requires live NIC/GSP API access).
+
+| # | Feature | Priority | Status | Details |
 |---|---------|----------|--------|---------|
-| 15.1 | E-Way Bill Form | P2 | 3 days | For goods movement > ₹50,000; vehicle number, distance, transporter |
-| 15.2 | Link to Invoice | P2 | 1 day | Auto-populate from sales invoice |
-| 15.3 | E-Way Bill Number Tracking | P2 | 1 day | Store bill number, validity |
-| 15.4 | E-Way Bill Report | P2 | 1 day | List all e-way bills with status |
+| 15.1 | E-Way Bill Form | P2 | ✅ | Transporter, vehicle, distance, value |
+| 15.2 | Link to Invoice | P2 | ✅ | Create-from-invoice prefills fields |
+| 15.3 | E-Way Bill Number Tracking | P2 | ✅ ⚠️ | Stores a **mock** bill number + validity; cancel supported |
+| 15.4 | E-Way Bill Report / List | P2 | ✅ | Lists all e-way bills with status |
 
-### 16. E-Invoice Generation
+### 16. E-Invoice Generation — ✅ IMPLEMENTED (Jul 2026) · 🟡 LOCAL MOCK provider
 
-| # | Feature | Priority | Effort | Details |
+> Action on the Invoices page. Generates **IRN / AckNo / signed QR image** and supports cancel, via the **local mock** provider `backend/src/services/eInvoiceProvider.js`. **This does not file a real e-invoice** — real IRN minting needs a GSTN-authorised **IRP/GSP** integration (auth token, signed payload, sandbox → prod). See `PRODUCTION-DEPLOYMENT-AND-PUBLISHING.md`.
+
+| # | Feature | Priority | Status | Details |
 |---|---------|----------|--------|---------|
-| 16.1 | Generate IRN (Invoice Reference Number) | P2 | 3 days | Integrate with GSTN IRP (Invoice Registration Portal) |
-| 16.2 | QR Code on Invoice | P2 | 1 day | Add signed QR code to PDF |
-| 16.3 | E-Invoice Status Tracking | P2 | 1 day | Track IRN generation status |
+| 16.1 | Generate IRN (Invoice Reference Number) | P2 | ✅ 🟡 | Via local mock provider; swap in a real IRP/GSP for production |
+| 16.2 | QR Code on Invoice | P2 | ✅ | Signed QR image (via `qrcode`) embedded on the PDF |
+| 16.3 | E-Invoice Status Tracking + Cancel | P2 | ✅ | Tracks IRN status; cancel supported |
 
-### 17. Reports & Analytics
+### 17. Reports & Analytics — ✅ IMPLEMENTED (July 2026)
+
+> Sales register, Purchase register, tax‑rate summary, HSN summary, and ITC analysis — all exportable to CSV.
 
 | # | Feature | Priority | Effort | Details |
 |---|---------|----------|--------|---------|
@@ -335,30 +396,32 @@
 | 17.7 | ITC Analysis Report | P1 | 1 day | Available vs utilized vs balance |
 | 17.8 | Export to Excel/CSV | P1 | 1 day | For all reports |
 
-### 18. TDS/TCS Management
+### 18. TDS/TCS Management — ✅ IMPLEMENTED (Jul 2026)
 
-| # | Feature | Priority | Effort | Details |
+> Page at `/tds-tcs`. Record TDS/TCS entries and view a monthly summary. Fully functional locally.
+
+| # | Feature | Priority | Status | Details |
 |---|---------|----------|--------|---------|
-| 18.1 | TCS for E-Commerce Operators | P2 | 2 days | Tax Collected at Source tracking |
-| 18.2 | TDS on Purchases | P2 | 2 days | Tax Deducted at Source tracking |
-| 18.3 | TDS/TCS Credit in GSTR-3B | P2 | 1 day | Table 6.2 in GSTR-3B |
+| 18.1 | TCS for E-Commerce Operators | P2 | ✅ | Tax Collected at Source tracking |
+| 18.2 | TDS on Purchases | P2 | ✅ | Tax Deducted at Source tracking |
+| 18.3 | Monthly TDS/TCS Summary | P2 | ✅ | Period-wise summary view |
 
 ---
 
 ## 🔵 PHASE 3: Enterprise Features (Month 9–12)
 
-| # | Feature | Priority | Effort | Details |
-|---|---------|----------|--------|---------|
-| 19.1 | Auto-Filing to GST Portal (with DSC) | P2 | 4 weeks | Direct API integration with GSTN; Digital Signature Certificate |
-| 19.2 | Inventory Management | P2 | 3 weeks | Stock tracking, stock-in/out linked to invoices/purchases |
-| 19.3 | Bank Reconciliation | P2 | 2 weeks | Import bank statements; match with invoices/purchases |
-| 19.4 | Financial Reports (P&L, Balance Sheet) | P2 | 3 weeks | Accounting reports from transaction data |
-| 19.5 | AI-Powered Tax Optimization | P3 | 4 weeks | Suggest tax-saving opportunities based on data patterns |
-| 19.6 | Mobile App (PWA) | P2 | 3 weeks | Progressive Web App with offline support |
-| 19.7 | WhatsApp Integration | P3 | 2 weeks | Share invoices via WhatsApp |
-| 19.8 | GST Chatbot | P3 | 3 weeks | AI chatbot for GST queries |
-| 19.9 | Product/Service Master Module | P1 | 2 days | Reusable product catalog with HSN, default GST rate; auto-populate in invoice items |
-| 19.10 | Admin Panel (Internal) | P1 | 2 weeks | User management, subscription overview, system health |
+| # | Feature | Priority | Status | Real? | Details |
+|---|---------|----------|--------|-------|---------|
+| 19.1 | Auto-Filing to GST Portal (with DSC) | P2 | ✅ **Stub** (`/gst-filing/file`) | 🟡 Returns SIMULATED | Real filing needs a **GSP + DSC/EVC**; see production doc |
+| 19.2 | Inventory Management | P2 | ✅ Done (`/inventory`) | ✅ Fully local | Stock, adjustments, low-stock, movements |
+| 19.3 | Bank Reconciliation | P2 | ✅ Done (`/bank-reconciliation`) | ✅ Fully local | Import CSV, auto-match, manual match/ignore, summary |
+| 19.4 | Financial Reports (P&L, Balance Sheet) | P2 | ✅ Done (`/financials`) | ✅ Fully local (simplified) | Simplified P&L + indicative Balance Sheet, with disclaimer |
+| 19.5 | AI-Powered Tax Optimization | P3 | ✅ Rules-based (`/insights`) | ✅ Fully local (**no LLM**) | Rules engine; not an LLM. LLM-based optimisation still future |
+| 19.6 | Mobile App | P2 | ✅ Done (Expo React Native) | ✅ Fully local | See `mobile/` (Expo). PWA variant not pursued |
+| 19.7 | WhatsApp Integration | P3 | ✅ Done (`wa.me` link) | ✅ Real link (no creds) | Full WhatsApp **Business Cloud API** = separate integration |
+| 19.8 | GST Chatbot | P3 | ✅ Done (floating helper) | ✅ Fully local (rules/FAQ, **no LLM**) | LLM-backed chatbot still future |
+| 19.9 | Product/Service Master Module | P1 | ✅ Done (Jul 2026) | ✅ Fully local | Reusable catalog with HSN, default GST rate |
+| 19.10 | Business Admin Panel | P1 | ✅ Done (`/admin`) | ✅ Fully local | Business-scoped overview, activity, system health (not platform super-admin) |
 
 ---
 
@@ -519,6 +582,28 @@ Models:
 
 ---
 
+## 🗺️ Roadmap — Local Mock/Stub vs Fully Functional
+
+Most of the previously-deferred items are now **built and demoable locally**. The important distinction for anyone evaluating or productionising this app is which features are **real end-to-end** versus which are **local mocks/stubs** that need a real third-party integration before they can be trusted in production.
+
+### 🟡 Local MOCK / STUB — demoable now, needs a real integration for production
+
+| Feature | What's real locally | What's simulated | To make it real (see `PRODUCTION-DEPLOYMENT-AND-PUBLISHING.md`) |
+|---------|---------------------|------------------|-----------------------------------------------------------------|
+| **E-Invoice / IRN + QR** | Full UX: generate/cancel, IRN/AckNo, signed QR on PDF | IRN/QR are fabricated by `eInvoiceProvider.js` (local mock) | Integrate a **GSTN-authorised IRP/GSP** (auth token, signed IRN payload, sandbox → prod); swap the provider module |
+| **GST auto-filing** (`/gst-filing/file`) | Trigger + response handling | Response is **SIMULATED**; nothing is submitted | Integrate a **GSP** + **DSC/e-sign or EVC** for real GSTR filing |
+| **E-Way Bill number** | Create/cancel/list, create-from-invoice, validity | The EWB **number** is generated locally | Integrate the **NIC E-Way Bill API** (via GSP) to register real EWBs |
+| **WhatsApp (automated/templated sends)** | `wa.me` share link works with no creds | No programmatic/automated sending | Integrate **WhatsApp Business Cloud API** (verified sender, templates, token) |
+| **LLM features** (chatbot, tax optimisation) | Rules/FAQ chatbot + rules-based Insights work fully offline | No actual LLM reasoning | Wire an LLM provider if/when richer natural-language help is desired |
+
+### ✅ Fully functional locally (no external service required)
+
+TDS/TCS · Inventory · Bank reconciliation · Financial statements (simplified) · Insights (rules-based) · Business Admin panel · Bulk CSV import · Invoice Terms & Conditions · Team roles + Audit log · Reports & Analytics · Product/Service master · Mobile app (Expo).
+
+> **Bottom line:** everything above can be shown working on a single laptop. Before real-world GST use, the 🟡 items must be connected to their respective GSTN-authorised / third-party services. The exact credentials and integration points are documented in [`PRODUCTION-DEPLOYMENT-AND-PUBLISHING.md`](PRODUCTION-DEPLOYMENT-AND-PUBLISHING.md).
+
+---
+
 ## ✅ Summary
 
 | Category | Built | Remaining | Total |
@@ -533,7 +618,7 @@ Models:
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** February 22, 2026  
+**Document Version:** 4.0  
+**Last Updated:** July 30, 2026  
 **Owner:** Software Engineer (You)  
-**Next Review:** After Sprint 1 completion
+**Next Review:** After next feature round

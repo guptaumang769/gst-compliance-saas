@@ -73,6 +73,12 @@ backups/
 uploads/
 backend/uploads/
 
+# Generated invoice PDFs (local storage)
+backend/storage/invoices/
+
+# Sensitive config
+config.txt
+
 # Prisma
 prisma/dev.db
 prisma/dev.db-journal

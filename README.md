@@ -2,9 +2,36 @@
 
 ## 🎯 Project Overview
 
-A comprehensive SaaS platform to help Indian SMEs manage GST compliance easily. Automates invoice creation, GST calculations, and return generation (GSTR-1, GSTR-3B).
+A comprehensive SaaS platform to help Indian SMEs manage GST compliance easily. Automates invoice creation, GST calculations, and return generation (GSTR-1, GSTR-3B). Includes a **web app** (React + Vite + MUI), a **Node/Express + Prisma/PostgreSQL API**, and an **Expo React Native mobile app**.
 
 **Target Customers:** Small & Medium Businesses with ₹20L - ₹10Cr annual turnover
+
+---
+
+## ✨ Key Capabilities
+
+**Core (fully functional locally):**
+- Invoicing with automatic **CGST/SGST vs IGST** calculation, PDF generation, email, and **per-invoice + default Terms & Conditions** on the PDF
+- Customers, suppliers, purchases with **ITC**, and a **Product/Service master** (HSN/SAC)
+- **GSTR-1 & GSTR-3B** generation (structured views + JSON), **Credit/Debit Notes**, **GSTR-2A/2B reconciliation**
+- **Reports & Analytics** (sales/purchase registers, tax-rate & HSN summaries, ITC analysis) with CSV export
+- **Team roles** (Owner / Accountant / Viewer) + **Audit Log**, **Compliance Calendar**, **Dashboard** with charts
+- **TDS/TCS**, **Inventory** (stock, adjustments, low-stock, movements), **Bank reconciliation** (CSV import + auto-match), **simplified Financial statements** (P&L + indicative Balance Sheet)
+- **Insights** (rules-based, no LLM) driving a dashboard widget + notifications, a **rules/FAQ GST chatbot**, **business Admin panel**, **bulk CSV import** (customers/suppliers/products), and **WhatsApp share** via `wa.me` link
+- **Mobile app** (Expo) for on-the-go dashboard/invoices/customers/products
+
+**Local mock / stub — demoable now, needs a real integration for production (see docs):**
+- **E-Invoice / IRN + QR** (local mock provider) · **GST auto-filing** (returns SIMULATED) · **E-Way Bill number** (generated locally) · **automated WhatsApp** (Business Cloud API) · **LLM** features
+
+> 🧭 **Not sure what's real vs simulated?** [`PHASE-STATUS-AND-PLAN.md`](PHASE-STATUS-AND-PLAN.md) has a per-feature "Real?" column.
+
+## 📘 Key Guides
+
+- 🖥️ **Run & test locally (Windows/macOS):** [`LOCAL-SETUP-AND-TESTING.md`](LOCAL-SETUP-AND-TESTING.md)
+- 🚀 **Deploy to production & publish the mobile app:** [`PRODUCTION-DEPLOYMENT-AND-PUBLISHING.md`](PRODUCTION-DEPLOYMENT-AND-PUBLISHING.md)
+- 📋 **Feature status & roadmap (real vs mock):** [`PHASE-STATUS-AND-PLAN.md`](PHASE-STATUS-AND-PLAN.md)
+- 📱 **Mobile app setup & testing:** [`mobile/SETUP-AND-TESTING.md`](mobile/SETUP-AND-TESTING.md)
+- ⚡ **Scaling to high TPS (reliability, low-latency, event-driven design):** [`SCALABILITY-RELIABILITY-AND-EVENT-DRIVEN-DESIGN.md`](SCALABILITY-RELIABILITY-AND-EVENT-DRIVEN-DESIGN.md)
 
 ---
 
@@ -60,36 +87,26 @@ gst-compliance-saas/
 
 ## 🚀 Quick Start Guide
 
-### Prerequisites:
-- Node.js 20+
-- Docker & Docker Compose
-- PostgreSQL 15+
+👉 **The authoritative, copy‑paste‑runnable local guide is [`LOCAL-SETUP-AND-TESTING.md`](LOCAL-SETUP-AND-TESTING.md).** It covers prerequisites, Docker vs. manual setup, env vars, migrations + demo seed, running the app, testing, and troubleshooting. Start there.
+
+### Prerequisites (summary)
+- Node.js 20 LTS + npm 10
+- Docker Desktop **or** local PostgreSQL 15 + Redis
 - Git
 
-### Local Development Setup:
+### 60‑second local run
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-org/gst-compliance-saas.git
-cd gst-compliance-saas
-
-# 2. Create environment file
-cp backend/.env.example backend/.env
-# Edit backend/.env with your database credentials
-
-# 3. Start all services with Docker
-docker-compose up -d
-
-# 4. Run database migrations
-cd backend
-npm install
-npx prisma migrate dev
-
-# 5. Access the application
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:5000
-# Database: localhost:5432
+docker compose up -d postgres redis                                   # infra
+cd backend && npm install && cp .env.example .env                     # deps + env (set JWT_SECRET)
+npx prisma generate && npx prisma migrate dev && npm run seed         # db + demo data
+npm run dev                                                           # backend → http://localhost:5000
+cd ../frontend && npm install && npm run dev                          # frontend → http://localhost:5173
 ```
+
+Then open **http://localhost:5173** and log in with **`demo@gstsaas.test` / `Demo@1234`** (valid only after `npm run seed`).
+
+> Full details, both setup paths, optional integrations, testing, and troubleshooting live in [`LOCAL-SETUP-AND-TESTING.md`](LOCAL-SETUP-AND-TESTING.md).
 
 ---
 
